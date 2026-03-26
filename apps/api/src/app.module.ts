@@ -5,7 +5,10 @@ import { HealthController } from './health/health.controller';
 @Module({
   imports: [
     CoreModule.forRoot({
-      clerkSecretKey: process.env.CLERK_SECRET_KEY,
+      authProvider:
+        (process.env.AUTH_PROVIDER as import('@forge-core/core').AuthProviderKey) ??
+        undefined,
+      authSecretKey: process.env.AUTH_SECRET_KEY,
       allowedOrgIds: process.env.ALLOWED_ORG_IDS?.split(',').filter(Boolean),
     }),
   ],

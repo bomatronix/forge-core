@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "nest start api --watch",
     "dev:debug": "nest start api --debug --watch",
+    "clean": "rm -rf dist && find apps libs -type f \\( -name '*.js' -o -name '*.d.ts' -o -name '*.js.map' \\) ! -name 'jest.config.js' -delete",
+    "prebuild": "pnpm clean",
     "build": "nest build api",
-    "build:lambda": "nest build api && node esbuild.config.mjs api",
+    "build:lambda": "pnpm build && node esbuild.config.mjs api",
     "build:client": "nest build $CLIENT && node esbuild.config.mjs $CLIENT",
     "start": "node dist/apps/api/src/main.js",
     "start:prod": "NODE_ENV=production node dist/apps/api/src/main.js",

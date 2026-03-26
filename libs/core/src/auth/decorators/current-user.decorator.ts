@@ -1,16 +1,10 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
-
-export interface AuthUser {
-  id: string;
-  email: string | null;
-  name: string | null;
-  avatarUrl: string | null;
-}
+import type { AuthUser } from '../types';
 
 /**
  * Extracts the authenticated user from the request.
- * Set by ClerkAuthGuard after JWT validation.
+ * Set by AuthGuard after token verification via the active adapter.
  */
 export const CurrentUser = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): AuthUser | null => {

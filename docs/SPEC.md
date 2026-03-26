@@ -46,7 +46,7 @@ Managed by NestJS CLI monorepo mode (`nest-cli.json`) + Turbo for task orchestra
 - Clean handoff — extract client folder + libs into standalone repo
 
 **Tenant isolation (defense-in-depth)**:
-1. `ClerkAuthGuard` — validates JWT, extracts user + org_id
+1. `AuthGuard` — validates JWT via pluggable adapter, extracts user + org_id
 2. `TenantGuard` — validates org_id is in `allowedOrgIds` for this deployment
 3. Database scoping — all queries filtered by tenant (future)
 
@@ -99,12 +99,14 @@ All endpoints prefixed with `/api`.
 ## Authentication
 
 - **Method**: Bearer token in `Authorization` header
-- **Provider**: Clerk JWT validation (initially), pluggable for NextAuth/Okta
-- **Implementation**: `ClerkAuthGuard` (global, in `libs/core/`) validates JWT and attaches user/tenant to request
-- **Session shape**: `{ user: { id, email, name, avatarUrl } }`
+- **Provider**: Pluggable via adapter pattern — Clerk (default), NextAuth, Okta
+- **Implementation**: Provider-agnostic `AuthGuard` injects `AuthTokenVerifier` adapter resolved at startup via `resolveAuthAdapter()` registry
+- **Adapter pattern**: Contract (`AuthTokenVerifier`) → concrete adapters (`ClerkTokenVerifier`, etc.) → exhaustive switch registry → injection token (`AUTH_TOKEN_VERIFIER`). Same pattern from agent-forge, applied to all third-party service integrations.
+- **Session shape**: `AuthSession { user: AuthUser { id, email, name, avatarUrl }, tenantId: string | null }`
 - **Decorators**: `@CurrentUser()`, `@CurrentTenant()` extract from request
 - **Public routes**: `@Public()` decorator skips auth guards (e.g., health checks)
-- **Status**: Guard structure in place, actual Clerk JWT verification is a stub (TODO: integrate `@clerk/backend`)
+- **Configuration**: `CoreModule.forRoot({ authProvider: 'clerk', authSecretKey: '...', allowedOrgIds: [...] })`
+- **Status**: Adapter structure complete. Clerk adapter is a stub (TODO: integrate `@clerk/backend`). NextAuth and Okta adapters throw `NotImplementedError`.
 
 ## Multi-Tenancy
 

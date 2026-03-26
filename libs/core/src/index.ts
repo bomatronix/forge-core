@@ -3,13 +3,24 @@ export { CoreModule } from './core.module';
 export type { CoreModuleOptions } from './core.module';
 export { CORE_MODULE_OPTIONS } from './core.constants';
 
-// Auth guards
-export { ClerkAuthGuard } from './auth/guards/clerk-auth.guard';
+// Auth — contracts & types
+export type { AuthProviderKey, AuthTokenVerifier } from './auth/contracts';
+export type { AuthUser, AuthSession } from './auth/types';
+export { AUTH_TOKEN_VERIFIER } from './auth/auth.constants';
+export { NotImplementedError } from './auth/not-implemented.error';
+export { resolveAuthAdapter } from './auth/auth-registry';
+
+// Auth — guards
+export { AuthGuard } from './auth/guards/auth.guard';
 export { TenantGuard } from './auth/guards/tenant.guard';
+
+// Auth — adapters
+export { ClerkTokenVerifier } from './auth/adapters/clerk/token-verifier';
+export { NextAuthTokenVerifier } from './auth/adapters/next-auth/token-verifier';
+export { OktaTokenVerifier } from './auth/adapters/okta/token-verifier';
 
 // Decorators
 export { CurrentUser } from './auth/decorators/current-user.decorator';
-export type { AuthUser } from './auth/decorators/current-user.decorator';
 export { CurrentTenant } from './auth/decorators/current-tenant.decorator';
 export { Public, IS_PUBLIC_KEY } from './auth/decorators/public.decorator';
 

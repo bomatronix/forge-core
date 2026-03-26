@@ -45,7 +45,11 @@ libs/
     src/dto/        — Request/response DTOs (future)
   core/             — Shared NestJS runtime modules
     src/core.module.ts       — CoreModule.forRoot(options) DynamicModule
-    src/auth/guards/         — ClerkAuthGuard, TenantGuard
+    src/auth/contracts.ts    — AuthProviderKey, AuthTokenVerifier interface
+    src/auth/types.ts        — AuthUser, AuthSession
+    src/auth/auth-registry.ts — resolveAuthAdapter (exhaustive switch)
+    src/auth/adapters/       — clerk/, next-auth/, okta/ token verifiers
+    src/auth/guards/         — AuthGuard (generic), TenantGuard
     src/auth/decorators/     — @CurrentUser(), @CurrentTenant(), @Public()
     src/interceptors/        — LoggingInterceptor, TransformInterceptor
     src/filters/             — AllExceptionsFilter
@@ -65,6 +69,7 @@ libs/
 - **Lambda pattern**: Bootstrap in global scope, cached instance reused across warm invocations
 - **Build pipeline**: NestJS CLI uses tsc builder; Lambda bundle uses two-step `nest build` → esbuild to produce a single file
 - **Auth guards are global**: Registered by `CoreModule.forRoot()`. Use `@Public()` to skip auth on specific routes.
+- **Adapter pattern for all third-party services**: Follows agent-forge conventions. See "Adapter pattern" section below.
 
 ### Agency model
 
@@ -82,6 +87,26 @@ Each client gets their own `apps/client-<name>/` folder with:
 ### Frontend counterpart
 
 The `agent-forge` repo (Next.js 16) calls these APIs via `@forge/api-client` with Bearer token auth. API contracts are defined in `libs/common/src/interfaces/` and must stay in sync with `agent-forge/apps/web/src/features/agents/types.ts`.
+
+## Adapter pattern (third-party services)
+
+Every third-party service integration must follow this pattern (mirrored from agent-forge):
+
+1. **Contract interface** in `contracts.ts` — defines the method signatures any adapter must implement
+2. **Provider key union type** (e.g., `AuthProviderKey = 'clerk' | 'next-auth' | 'okta'`) — adding a new value forces a TypeScript error at the registry switch
+3. **Concrete adapters** in `adapters/<provider>/` — one class per provider implementing the contract
+4. **Stub adapters** throw `NotImplementedError` with a helpful message pointing to the file to implement
+5. **`_typeCheck` assertion** at the bottom of each adapter file: `const _typeCheck: Contract = new Adapter(); void _typeCheck;`
+6. **Registry function** with exhaustive switch (`default: { const _exhaustive: never = provider; }`) — resolved at module startup, not at request time
+7. **Injection token** (e.g., `AUTH_TOKEN_VERIFIER`) — guards/services inject the resolved adapter, never import a concrete adapter directly
+
+**Adding a new auth provider:**
+1. Add the key to `AuthProviderKey` in `contracts.ts`
+2. Create `adapters/<provider>/token-verifier.ts` implementing `AuthTokenVerifier`
+3. Add the case in `auth-registry.ts` — TypeScript will error until you do
+4. That's it — `AuthGuard` and `CoreModule` work automatically
+
+**Import isolation:** Application code must never import from `adapters/` directly. Always import the contract type and inject via token.
 
 ## Code rules
 
