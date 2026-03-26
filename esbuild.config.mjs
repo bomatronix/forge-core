@@ -1,11 +1,13 @@
 import { build } from 'esbuild'
 
+const client = process.argv[2] || 'api'
+
 await build({
-  entryPoints: ['dist/apps/api/lambda.js'],
+  entryPoints: [`dist/apps/${client}/src/lambda.js`],
   bundle: true,
   platform: 'node',
   target: 'node20',
-  outfile: 'dist/lambda/handler.js',
+  outfile: `dist/lambda/${client}/handler.js`,
   format: 'cjs',
   minify: true,
   sourcemap: true,
@@ -13,9 +15,7 @@ await build({
     // Native modules that shouldn't be bundled
     '@nestjs/microservices',
     '@nestjs/websockets',
-    'class-transformer',
-    'class-validator',
   ],
 })
 
-console.log('Lambda bundle created: dist/lambda/handler.js')
+console.log(`Lambda bundle created: dist/lambda/${client}/handler.js`)

@@ -26,11 +26,41 @@ The entire NestJS API deploys as a **single Lambda function** behind API Gateway
 ### Monorepo Structure
 
 ```
-apps/api/         — Main API application (@nestjs)
-libs/common/      — Shared interfaces, DTOs, guards
+apps/
+  api/              — Platform/default API application
+  client-<name>/    — Per-client applications (custom modules)
+libs/
+  common/           — Shared TypeScript interfaces, DTOs (zero runtime cost)
+  core/             — Shared NestJS runtime modules (auth, guards, interceptors)
 ```
 
 Managed by NestJS CLI monorepo mode (`nest-cli.json`) + Turbo for task orchestration.
+
+### Agency Model: Shared Core + Client Folders
+
+**Pattern**: One repo with shared core infrastructure (`libs/core/`) and per-client app folders (`apps/client-<name>/`). Each client is a separate NestJS application that imports `CoreModule.forRoot()` and adds its own custom modules.
+
+**Deployment**: One Lambda per client. Each client gets its own Lambda function with isolated env vars, DB connection, and API Gateway. Benefits:
+- Process-level isolation between clients
+- Independent deployments (Client A deploy doesn't affect Client B)
+- Clean handoff — extract client folder + libs into standalone repo
+
+**Tenant isolation (defense-in-depth)**:
+1. `ClerkAuthGuard` — validates JWT, extracts user + org_id
+2. `TenantGuard` — validates org_id is in `allowedOrgIds` for this deployment
+3. Database scoping — all queries filtered by tenant (future)
+
+**Adding a new client**:
+1. Create `apps/client-<name>/` with `main.ts`, `lambda.ts`, `app.module.ts`
+2. Import `CoreModule.forRoot({ allowedOrgIds: [...] })` + client-specific modules
+3. Register in `nest-cli.json` as a new project
+4. Add build script: `"build:<name>": "CLIENT=client-<name> pnpm build:client"`
+
+**Client handoff**:
+1. Copy `apps/client-<name>/`, `libs/common/`, `libs/core/` into new repo
+2. Rewrite `nest-cli.json` to only their project + libraries
+3. Transfer AWS resources (Lambda, API Gateway, DB)
+4. Optionally: publish `@forge-core/core` as private npm package for ongoing updates
 
 ## Planned API Surface
 
@@ -66,17 +96,21 @@ All endpoints prefixed with `/api`.
 |--------|------|-------------|
 | GET | `/api/health` | Health check |
 
-## Authentication (Future)
+## Authentication
 
 - **Method**: Bearer token in `Authorization` header
 - **Provider**: Clerk JWT validation (initially), pluggable for NextAuth/Okta
-- **Implementation**: NestJS Guard that validates JWT and extracts user/tenant claims
+- **Implementation**: `ClerkAuthGuard` (global, in `libs/core/`) validates JWT and attaches user/tenant to request
 - **Session shape**: `{ user: { id, email, name, avatarUrl } }`
+- **Decorators**: `@CurrentUser()`, `@CurrentTenant()` extract from request
+- **Public routes**: `@Public()` decorator skips auth guards (e.g., health checks)
+- **Status**: Guard structure in place, actual Clerk JWT verification is a stub (TODO: integrate `@clerk/backend`)
 
-## Multi-Tenancy (Future)
+## Multi-Tenancy
 
-- Tenant/org scoping via JWT claims (Clerk organization ID)
-- All data queries scoped to authenticated tenant
+- `TenantGuard` validates org_id from JWT against `allowedOrgIds` env var per deployment
+- Each client Lambda has its own `ALLOWED_ORG_IDS` — defense-in-depth against cross-tenant access
+- Database scoping via tenant ID on all queries (future)
 - Brand configuration remains frontend-side (`NEXT_PUBLIC_BRAND`)
 
 ## Tech Stack
@@ -87,7 +121,7 @@ All endpoints prefixed with `/api`.
 | Language | TypeScript 5.7.3 (strict mode) |
 | HTTP | Express 4 |
 | Lambda adapter | @codegenie/serverless-express |
-| Build | NestJS CLI (esbuild builder) + esbuild for Lambda bundle |
+| Build | NestJS CLI (tsc builder) + esbuild for Lambda bundle |
 | Orchestration | Turbo |
 | Package manager | pnpm 9.11.0 |
 | Testing | Jest + @nestjs/testing |

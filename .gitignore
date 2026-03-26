@@ -7,3 +7,11 @@ coverage/
 .turbo/
 .nest/
 *.js.map
+
+# Build artifacts that may leak into source dirs
+apps/**/*.js
+apps/**/*.d.ts
+libs/**/*.js
+libs/**/*.d.ts
+!*.config.js
+!jest.config.js

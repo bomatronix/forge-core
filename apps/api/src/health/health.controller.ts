@@ -1,12 +1,15 @@
 import { Controller, Get } from '@nestjs/common';
+import { Public } from '@forge-core/core';
 
 @Controller()
 export class HealthController {
+  @Public()
   @Get()
   root() {
     return this.health();
   }
 
+  @Public()
   @Get('health')
   health() {
     return {

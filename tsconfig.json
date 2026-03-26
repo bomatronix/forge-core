@@ -23,7 +23,9 @@
     "esModuleInterop": true,
     "paths": {
       "@forge-core/common": ["libs/common/src"],
-      "@forge-core/common/*": ["libs/common/src/*"]
+      "@forge-core/common/*": ["libs/common/src/*"],
+      "@forge-core/core": ["libs/core/src"],
+      "@forge-core/core/*": ["libs/core/src/*"]
     }
   }
 }

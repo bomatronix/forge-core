@@ -18,5 +18,6 @@ module.exports = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@forge-core/common(.*)$': '<rootDir>/libs/common/src$1',
+    '^@forge-core/core(.*)$': '<rootDir>/libs/core/src$1',
   },
 };
