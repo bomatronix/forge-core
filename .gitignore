@@ -15,3 +15,4 @@ libs/**/*.js
 libs/**/*.d.ts
 !*.config.js
 !jest.config.js
+test-auth.html

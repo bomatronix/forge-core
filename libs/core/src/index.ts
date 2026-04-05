@@ -18,6 +18,8 @@ export { TenantGuard } from './auth/guards/tenant.guard';
 export { ClerkTokenVerifier } from './auth/adapters/clerk/token-verifier';
 export { NextAuthTokenVerifier } from './auth/adapters/next-auth/token-verifier';
 export { OktaTokenVerifier } from './auth/adapters/okta/token-verifier';
+export { LambdaAuthorizerContextReader } from './auth/adapters/lambda-authorizer/context-reader';
+export { DevTokenVerifier } from './auth/adapters/dev/token-verifier';
 
 // Decorators
 export { CurrentUser } from './auth/decorators/current-user.decorator';

@@ -1,0 +1,89 @@
+name: CI/CD — Development
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  # ── CI checks ────────────────────────────────────────────────────────────────
+  checks:
+    uses: ./.github/workflows/shared-checks.yml
+
+  # ── Detect changed workspaces ────────────────────────────────────────────────
+  detect-changes:
+    name: Detect Changed Workspaces
+    runs-on: ubuntu-latest
+    needs: [checks]
+    if: github.event_name == 'push'
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            libs:
+              - 'libs/**'
+            apps:
+              - 'apps/**'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build deployment matrix
+        id: set-matrix
+        env:
+          DEPLOY_ENV: dev
+          CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
+          LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
+          S3_FORGE_CORE_DEV: ${{ vars.S3_FORGE_CORE_DEV }}
+        run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
+
+  # ── Deploy to dev ─────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Dev (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.matrix != '[]'
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build all apps in workspace
+        run: |
+          for app in ${{ join(matrix.apps, ' ') }}; do
+            echo "Building $app..."
+            APP=$app pnpm build:app
+          done
+      - name: Upload Lambda zips to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          for app in ${{ join(matrix.apps, ' ') }}; do
+            zip -j ${app}.zip dist/lambda/${app}/handler.js
+            aws s3 cp ${app}.zip s3://${{ matrix.s3_bucket }}/${{ matrix.lambda_key_prefix }}/${app}-${SHORT_SHA}.zip
+            rm ${app}.zip
+          done
+      - name: Update TFE variable + trigger dev run
+        env:
+          TFE_TOKEN: ${{ secrets.TFE_TOKEN }}
+        run: node .github/scripts/deploy-tfe.js ${{ matrix.tfe_workspace }} ${GITHUB_SHA::7}

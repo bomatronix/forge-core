@@ -6,7 +6,16 @@
   "sourceRoot": "apps/api/src",
   "compilerOptions": {
     "builder": "tsc",
-    "tsConfigPath": "apps/api/tsconfig.app.json"
+    "tsConfigPath": "apps/api/tsconfig.app.json",
+    "plugins": [
+      {
+        "name": "@nestjs/swagger",
+        "options": {
+          "classValidatorShim": true,
+          "introspectComments": true
+        }
+      }
+    ]
   },
   "projects": {
     "api": {
@@ -34,6 +43,15 @@
       "entryFile": "index",
       "compilerOptions": {
         "tsConfigPath": "libs/core/tsconfig.lib.json"
+      }
+    },
+    "authorizer": {
+      "type": "application",
+      "root": "apps/authorizer",
+      "sourceRoot": "apps/authorizer/src",
+      "entryFile": "handler",
+      "compilerOptions": {
+        "tsConfigPath": "apps/authorizer/tsconfig.app.json"
       }
     }
   }

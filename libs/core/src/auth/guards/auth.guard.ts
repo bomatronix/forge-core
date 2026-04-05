@@ -43,7 +43,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing Bearer token');
     }
 
-    const session = await this.verifier.verifyToken(token);
+    const session = await this.verifier.verifyToken(token, request);
 
     if (!session) {
       throw new UnauthorizedException('Invalid or expired token');
