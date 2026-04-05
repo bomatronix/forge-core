@@ -1,7 +1,4 @@
-import type {
-  APIGatewayTokenAuthorizerEvent,
-  APIGatewayAuthorizerResult,
-} from 'aws-lambda';
+import type { APIGatewayTokenAuthorizerEvent, APIGatewayAuthorizerResult } from 'aws-lambda';
 import type { AuthProviderKey } from '@forge-core/core';
 import { resolveAuthAdapter } from '@forge-core/core';
 import type { AuthSession } from '@forge-core/core';

@@ -107,9 +107,7 @@ export class AuthController {
     });
 
     if (!res.ok) {
-      throw new UnauthorizedException(
-        `Clerk testing tokens API returned ${res.status}.`,
-      );
+      throw new UnauthorizedException(`Clerk testing tokens API returned ${res.status}.`);
     }
 
     const data = (await res.json()) as { token: string; expires_at: number };
@@ -147,7 +145,11 @@ export class AuthController {
     }
 
     try {
-      const adapter = resolveAuthAdapter(effectiveProvider, process.env.AUTH_SECRET_KEY, process.env.AUTH_PUBLISHABLE_KEY);
+      const adapter = resolveAuthAdapter(
+        effectiveProvider,
+        process.env.AUTH_SECRET_KEY,
+        process.env.AUTH_PUBLISHABLE_KEY,
+      );
       const session = await adapter.verifyToken(token);
 
       if (!session) {
@@ -166,6 +168,7 @@ export class AuthController {
         },
       };
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('[auth/verify] Token verification error:', err);
       throw new UnauthorizedException('Token verification failed');
     }

@@ -40,7 +40,10 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
 
     // Clerk Testing Token (non-JWT format) — use authenticateRequest()
     // These are issued by POST /v1/testing_tokens and only work with sk_test_ keys
-    const clerk = createClerkClient({ secretKey: this.secretKey, publishableKey: this.publishableKey });
+    const clerk = createClerkClient({
+      secretKey: this.secretKey,
+      publishableKey: this.publishableKey,
+    });
     const mockRequest = new Request('http://localhost', {
       headers: { authorization: `Bearer ${token}` },
     });
@@ -50,7 +53,6 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
     });
 
     if (!state.isSignedIn) {
-      console.error('[ClerkTokenVerifier] authenticateRequest not signed in:', state.reason, state.message);
       return null;
     }
 

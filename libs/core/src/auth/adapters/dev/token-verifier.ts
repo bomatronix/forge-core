@@ -18,7 +18,9 @@ export class DevTokenVerifier implements AuthTokenVerifier {
    * Issues a short-lived dev JWT representing a mock user.
    * Called by the /api/auth/token endpoint.
    */
-  static issueToken(overrides: Partial<{ userId: string; email: string; orgId: string }> = {}): string {
+  static issueToken(
+    overrides: Partial<{ userId: string; email: string; orgId: string }> = {},
+  ): string {
     const payload = {
       sub: overrides.userId ?? 'dev-user-id',
       email: overrides.email ?? 'dev@example.com',

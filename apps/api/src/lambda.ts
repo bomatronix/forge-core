@@ -31,11 +31,7 @@ async function bootstrap(): Promise<Handler> {
 // Bootstrap in global scope — runs during Lambda Init phase (burst CPU, not billed for first 10s)
 const handlerPromise = bootstrap();
 
-export const handler: Handler = async (
-  event: APIGatewayProxyEvent,
-  context: Context,
-  callback,
-) => {
+export const handler: Handler = async (event: APIGatewayProxyEvent, context: Context, callback) => {
   const resolvedHandler = await handlerPromise;
   return resolvedHandler(event, context, callback);
 };

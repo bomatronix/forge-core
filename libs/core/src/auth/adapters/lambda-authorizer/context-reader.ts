@@ -15,7 +15,6 @@ import type { AuthSession } from '../../types';
  * configured. Use AUTH_PROVIDER=clerk (or another direct provider) for local dev.
  */
 export class LambdaAuthorizerContextReader implements AuthTokenVerifier {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async verifyToken(_token: string, request?: Request): Promise<AuthSession | null> {
     // @codegenie/serverless-express exposes the raw Lambda event on req.apiGateway
     const apiGateway = (request as unknown as Record<string, unknown>)?.['apiGateway'] as
