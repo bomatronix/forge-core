@@ -10,9 +10,11 @@ import { handler } from './handler';
 
 const mockVerifyToken = clerkVerifyToken as jest.MockedFunction<typeof clerkVerifyToken>;
 
+// Tokens must start with 'eyJ' so ClerkTokenVerifier routes to the mocked
+// clerkVerifyToken() path rather than the authenticateRequest() path.
 const mockEvent = (token: string): APIGatewayTokenAuthorizerEvent => ({
   type: 'TOKEN',
-  authorizationToken: `Bearer ${token}`,
+  authorizationToken: `Bearer eyJ${token}`,
   methodArn: 'arn:aws:execute-api:us-east-1:123456789:abc123/prod/GET/api/agents',
 });
 
@@ -84,7 +86,7 @@ describe('Lambda Authorizer handler', () => {
 
     await handler(mockEvent('my-raw-token'));
 
-    expect(mockVerifyToken).toHaveBeenCalledWith('my-raw-token', expect.any(Object));
+    expect(mockVerifyToken).toHaveBeenCalledWith('eyJmy-raw-token', expect.any(Object));
   });
 
   it('context values are strings (REST API authorizer requirement)', async () => {
