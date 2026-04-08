@@ -7,10 +7,9 @@
  *   DEPLOY_ENV     — target environment: dev | qa | staging | prod
  *   CHANGED_FILES  — space-separated list of changed file paths
  *   LIBS_CHANGED   — 'true' if any libs/** file changed, else 'false'
- *   S3_*           — bucket name vars injected from GitHub vars (one per workspace/env)
  *
  * Each matrix entry:
- *   { workspace, apps, lambda_key_prefix, tfe_workspace, s3_bucket }
+ *   { workspace, apps, lambda_key_prefix, tfe_workspace }
  */
 
 import { readFileSync } from 'fs'
@@ -27,14 +26,6 @@ if (!deployEnv) throw new Error('DEPLOY_ENV env var is required (dev|qa|staging|
 
 const changedFiles = (process.env.CHANGED_FILES ?? '').split(/\s+/).filter(Boolean)
 const libsChanged = process.env.LIBS_CHANGED === 'true'
-
-/**
- * Resolve a bucket placeholder like "${S3_FORGE_CORE_STAGING}"
- * to the actual value from process.env.
- */
-function resolveBucket(value) {
-  return value.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? value)
-}
 
 /**
  * Determine which workspaces are affected by the current changeset.
@@ -72,7 +63,6 @@ const matrix = affected.map((wsName) => {
     apps: ws.apps,
     lambda_key_prefix: ws.lambda_key_prefix,
     tfe_workspace: env.tfe_workspace,
-    s3_bucket: resolveBucket(env.s3_bucket),
   }
 })
 

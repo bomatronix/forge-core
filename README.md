@@ -85,7 +85,7 @@ PRs only run CI checks — deploys only trigger on direct pushes to the branch.
 | `AWS_ROLE_TO_ASSUME` | `arn:aws:iam::...` | OIDC role ARN — set per GitHub Environment |
 | `S3_FORGE_CORE` | `forge-core-dev-123456789-api-code` | S3 bucket — set per GitHub Environment |
 
-> Set `AWS_ROLE_TO_ASSUME` and `S3_FORGE_CORE` under **Settings → Environments → \<env\> → Variables** for each environment (`dev`, `qa`, `staging`, `prod`). The value differs per environment; the variable name is the same.
+> Set `AWS_ROLE_TO_ASSUME` and `S3_FORGE_CORE` under **Settings → Environments → <env> → Variables** for each environment (`development`, `qa`, `staging`, `production`). The value differs per environment; the variable name is the same.
 
 **Branch rulesets** — import via GitHub CLI:
 ```bash
@@ -138,27 +138,16 @@ Add a workspace entry to `.github/deploy.json`:
 Add four bucket vars in **Settings → Secrets and variables → Actions → Variables**:
 - `S3_ACME_DEV`, `S3_ACME_QA`, `S3_ACME_STAGING`, `S3_ACME_PROD`
 
-### 4. Wire vars into the pipeline
+### 4. Use environment vars in deploy jobs
 
-Add the matching var to the `env:` block of the `detect-changes` step in each workflow:
+Bucket and role variables are read in the deploy jobs themselves, after the GitHub environment is attached. Keep environment-specific values in the matching GitHub Environment:
 
-`.github/workflows/ci-development.yml` (`DEPLOY_ENV: dev`):
-```yaml
-S3_ACME_DEV: ${{ vars.S3_ACME_DEV }}
-```
+- `development`
+- `qa`
+- `staging`
+- `production`
 
-`.github/workflows/ci-qa.yml` (`DEPLOY_ENV: qa`):
-```yaml
-S3_ACME_QA: ${{ vars.S3_ACME_QA }}
-```
-
-`.github/workflows/deploy-staging-prod.yml` (staging step + prod step):
-```yaml
-S3_ACME_STAGING: ${{ vars.S3_ACME_STAGING }}
-S3_ACME_PROD: ${{ vars.S3_ACME_PROD }}
-```
-
-> **Important:** This step is easy to miss. `build-matrix.js` resolves `${S3_ACME_STAGING}` from `process.env` at runtime — without this the bucket name stays as the raw placeholder and the S3 upload will fail.
+> **Important:** Do not resolve environment-scoped bucket vars during matrix generation. The `detect-changes` job does not have an attached GitHub environment, so those vars may resolve to empty strings and produce invalid `s3:///...` upload targets.
 
 That's it. The pipeline picks up the new workspace automatically on the next push to `main`.
 
