@@ -16,6 +16,8 @@ export interface CoreModuleOptions {
   authProvider?: AuthProviderKey;
   /** Provider-specific secret key for token verification */
   authSecretKey?: string;
+  /** Publishable key — required by Clerk when verifying testing tokens locally */
+  authPublishableKey?: string;
   /** Allowed organization IDs for this deployment (defense-in-depth) */
   allowedOrgIds?: string[];
 }
@@ -39,7 +41,7 @@ export interface CoreModuleOptions {
 export class CoreModule {
   static forRoot(options: CoreModuleOptions = {}): DynamicModule {
     const provider = options.authProvider ?? 'clerk';
-    const adapter = resolveAuthAdapter(provider, options.authSecretKey);
+    const adapter = resolveAuthAdapter(provider, options.authSecretKey, options.authPublishableKey);
 
     return {
       module: CoreModule,
