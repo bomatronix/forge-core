@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [checks]
     outputs:
-      matrix_staging: ${{ steps.staging.outputs.matrix }}
-      matrix_prod: ${{ steps.prod.outputs.matrix }}
-      has_changes: ${{ steps.staging.outputs.matrix != '[]' }}
+      matrix_staging: ${{ steps.staging.outputs.matrix || '[]' }}
+      matrix_prod: ${{ steps.prod.outputs.matrix || '[]' }}
+      has_changes: ${{ (steps.staging.outputs.matrix || '[]') != '[]' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,11 +60,11 @@ jobs:
     name: Deploy to Staging (${{ matrix.workspace }})
     runs-on: ubuntu-latest
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.matrix_staging != '[]'
+    if: (needs.detect-changes.outputs.matrix_staging || '[]') != '[]'
     environment: staging
     strategy:
       matrix:
-        include: ${{ fromJson(needs.detect-changes.outputs.matrix_staging) }}
+        include: ${{ fromJson(needs.detect-changes.outputs.matrix_staging || '[]') }}
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -125,7 +125,7 @@ jobs:
     name: Production Approval
     runs-on: ubuntu-latest
     needs: [deploy-staging, detect-changes]
-    if: needs.detect-changes.outputs.matrix_staging != '[]'
+    if: (needs.detect-changes.outputs.matrix_staging || '[]') != '[]'
     environment: ${{ vars.PRODUCTION_ENVIRONMENT || 'production' }}
     steps:
       - run: echo "Approved for production"
@@ -135,10 +135,11 @@ jobs:
     name: Deploy to Production (${{ matrix.workspace }})
     runs-on: ubuntu-latest
     needs: [approval, detect-changes]
+    if: (needs.detect-changes.outputs.matrix_prod || '[]') != '[]'
     environment: ${{ vars.PRODUCTION_ENVIRONMENT || 'production' }}
     strategy:
       matrix:
-        include: ${{ fromJson(needs.detect-changes.outputs.matrix_prod) }}
+        include: ${{ fromJson(needs.detect-changes.outputs.matrix_prod || '[]') }}
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
