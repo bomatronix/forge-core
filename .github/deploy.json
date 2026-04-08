@@ -4,19 +4,19 @@
       "apps": ["api", "authorizer"],
       "lambda_key_prefix": "api",
       "dev": {
-        "tfe_workspace": "forge-core-dev-api",
+        "tfe_workspace": "${CLIENT}-dev-api",
         "s3_bucket": "${S3_FORGE_CORE}"
       },
       "qa": {
-        "tfe_workspace": "forge-core-qa-api",
+        "tfe_workspace": "${CLIENT}-qa-api",
         "s3_bucket": "${S3_FORGE_CORE}"
       },
       "staging": {
-        "tfe_workspace": "forge-core-staging-api",
+        "tfe_workspace": "${CLIENT}-staging-api",
         "s3_bucket": "${S3_FORGE_CORE}"
       },
       "prod": {
-        "tfe_workspace": "forge-core-prod-api",
+        "tfe_workspace": "${CLIENT}-prod-api",
         "s3_bucket": "${S3_FORGE_CORE}"
       }
     }
