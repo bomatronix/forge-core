@@ -79,36 +79,10 @@ jobs:
           AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
           S3_BUCKET: ${{ vars.S3_FORGE_CORE }}
           S3_KMS_KEY_ID: ${{ vars.S3_KMS_KEY_ID }}
-        run: |
-          if [ -z "$S3_BUCKET" ]; then
-            echo "::error::S3_FORGE_CORE is not set for the qa environment"
-            exit 1
-          fi
-          SHORT_SHA=${GITHUB_SHA::7}
-          for app in ${{ join(matrix.apps, ' ') }}; do
-            artifact_path="dist/lambda/${app}/handler.js"
-            object_key="${{ matrix.lambda_key_prefix }}/${app}-${SHORT_SHA}.zip"
-            if [ ! -f "$artifact_path" ]; then
-              echo "::error::Missing built artifact $artifact_path for app '$app'"
-              exit 1
-            fi
-            zip -j ${app}.zip "$artifact_path"
-            s3_args=(--sse aws:kms)
-            if [ -n "$S3_KMS_KEY_ID" ]; then
-              s3_args+=(--sse-kms-key-id "$S3_KMS_KEY_ID")
-            fi
-            if aws s3api head-object --bucket "$S3_BUCKET" --key "$object_key" >/dev/null 2>&1; then
-              echo "Skipping existing s3://$S3_BUCKET/$object_key"
-              rm ${app}.zip
-              continue
-            fi
-            echo "Uploading ${app}.zip to s3://$S3_BUCKET/$object_key"
-            aws s3 cp ${app}.zip s3://$S3_BUCKET/$object_key "${s3_args[@]}"
-            aws s3api wait object-exists --bucket "$S3_BUCKET" --key "$object_key"
-            aws s3api head-object --bucket "$S3_BUCKET" --key "$object_key" >/dev/null
-            echo "Verified s3://$S3_BUCKET/$object_key"
-            rm ${app}.zip
-          done
+          LAMBDA_KEY_PREFIX: ${{ matrix.lambda_key_prefix }}
+          APPS: ${{ join(matrix.apps, ' ') }}
+          DEPLOY_ENV_LABEL: qa
+        run: bash .github/scripts/upload-lambda-zips.sh
       - name: Update TFE variable + trigger QA run
         env:
           TFE_TOKEN: ${{ secrets.TFE_TOKEN }}
