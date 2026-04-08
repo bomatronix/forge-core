@@ -52,6 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes]
     if: github.event_name == 'push' && needs.detect-changes.outputs.matrix != '[]'
+    environment: development
     permissions:
       id-token: write
       contents: read
