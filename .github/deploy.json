@@ -2,6 +2,10 @@
   "workspaces": {
     "forge-core": {
       "apps": ["api", "authorizer"],
+      "artifacts": {
+        "api": ["crud", "presign"],
+        "authorizer": ["authorizer"]
+      },
       "lambda_key_prefix": "api",
       "dev": {
         "tfe_workspace": "${CLIENT}-dev-api",
