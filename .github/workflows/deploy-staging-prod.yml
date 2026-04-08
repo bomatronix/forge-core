@@ -43,7 +43,7 @@ jobs:
           DEPLOY_ENV: staging
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
-          S3_FORGE_CORE_STAGING: ${{ vars.S3_FORGE_CORE_STAGING }}
+          S3_FORGE_CORE: ${{ vars.S3_FORGE_CORE }}
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
 
       - name: Build prod matrix
@@ -52,7 +52,7 @@ jobs:
           DEPLOY_ENV: prod
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
-          S3_FORGE_CORE_PROD: ${{ vars.S3_FORGE_CORE_PROD }}
+          S3_FORGE_CORE: ${{ vars.S3_FORGE_CORE }}
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
 
   # ── Phase 3: Build + deploy to staging ───────────────────────────────────────

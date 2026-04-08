@@ -81,11 +81,11 @@ PRs only run CI checks — deploys only trigger on direct pushes to the branch.
 
 | Variable | Example | Description |
 |---|---|---|
-| `AWS_REGION` | `us-east-1` | AWS region |
-| `S3_FORGE_CORE_DEV` | `forge-core-dev-123456789-api-code` | S3 bucket for dev |
-| `S3_FORGE_CORE_QA` | `forge-core-qa-123456789-api-code` | S3 bucket for QA |
-| `S3_FORGE_CORE_STAGING` | `forge-core-staging-123456789-api-code` | S3 bucket for staging |
-| `S3_FORGE_CORE_PROD` | `forge-core-prod-123456789-api-code` | S3 bucket for production |
+| `AWS_REGION` | `us-east-1` | AWS region (repo-level) |
+| `AWS_ROLE_TO_ASSUME` | `arn:aws:iam::...` | OIDC role ARN — set per GitHub Environment |
+| `S3_FORGE_CORE` | `forge-core-dev-123456789-api-code` | S3 bucket — set per GitHub Environment |
+
+> Set `AWS_ROLE_TO_ASSUME` and `S3_FORGE_CORE` under **Settings → Environments → \<env\> → Variables** for each environment (`dev`, `qa`, `staging`, `prod`). The value differs per environment; the variable name is the same.
 
 **Branch rulesets** — import via GitHub CLI:
 ```bash

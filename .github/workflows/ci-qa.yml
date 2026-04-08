@@ -44,7 +44,7 @@ jobs:
           DEPLOY_ENV: qa
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
-          S3_FORGE_CORE_QA: ${{ vars.S3_FORGE_CORE_QA }}
+          S3_FORGE_CORE: ${{ vars.S3_FORGE_CORE }}
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
 
   # ── Deploy to QA ──────────────────────────────────────────────────────────────
