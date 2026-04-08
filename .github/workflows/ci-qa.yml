@@ -104,7 +104,9 @@ jobs:
             fi
             echo "Uploading ${app}.zip to s3://$S3_BUCKET/$object_key"
             aws s3 cp ${app}.zip s3://$S3_BUCKET/$object_key "${s3_args[@]}"
-            echo "Uploaded s3://$S3_BUCKET/$object_key"
+            aws s3api wait object-exists --bucket "$S3_BUCKET" --key "$object_key"
+            aws s3api head-object --bucket "$S3_BUCKET" --key "$object_key" >/dev/null
+            echo "Verified s3://$S3_BUCKET/$object_key"
             rm ${app}.zip
           done
       - name: Update TFE variable + trigger QA run
