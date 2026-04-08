@@ -2,22 +2,37 @@
 
 set -euo pipefail
 
-if [ -z "${S3_BUCKET:-}" ]; then
+strip_line_endings() {
+  printf '%s' "$1" | tr -d '\r\n'
+}
+
+normalize_word_list() {
+  printf '%s' "$1" | tr '\r\n' ' '
+}
+
+S3_BUCKET=$(strip_line_endings "${S3_BUCKET:-}")
+S3_KMS_KEY_ID=$(strip_line_endings "${S3_KMS_KEY_ID:-}")
+LAMBDA_KEY_PREFIX=$(strip_line_endings "${LAMBDA_KEY_PREFIX:-}")
+DEPLOY_ENV_LABEL=$(strip_line_endings "${DEPLOY_ENV_LABEL:-target}")
+GITHUB_SHA=$(strip_line_endings "${GITHUB_SHA:-}")
+APPS=$(normalize_word_list "${APPS:-}")
+
+if [ -z "$S3_BUCKET" ]; then
   echo "::error::S3_FORGE_CORE is not set for the ${DEPLOY_ENV_LABEL:-target} environment"
   exit 1
 fi
 
-if [ -z "${LAMBDA_KEY_PREFIX:-}" ]; then
+if [ -z "$LAMBDA_KEY_PREFIX" ]; then
   echo "::error::LAMBDA_KEY_PREFIX is required"
   exit 1
 fi
 
-if [ -z "${APPS:-}" ]; then
+if [ -z "$APPS" ]; then
   echo "::error::APPS is required"
   exit 1
 fi
 
-if [ -z "${GITHUB_SHA:-}" ]; then
+if [ -z "$GITHUB_SHA" ]; then
   echo "::error::GITHUB_SHA is required"
   exit 1
 fi
@@ -51,7 +66,7 @@ for app in "${apps[@]}"; do
     --server-side-encryption aws:kms
   )
 
-  if [ -n "${S3_KMS_KEY_ID:-}" ]; then
+  if [ -n "$S3_KMS_KEY_ID" ]; then
     put_args+=(--ssekms-key-id "$S3_KMS_KEY_ID")
   fi
 
