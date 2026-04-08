@@ -55,7 +55,7 @@ PRs only run CI checks — deploys only trigger on direct pushes to the branch.
 2. Path filtering detects which TFE workspaces are affected:
    - Change in `apps/api/` or `apps/authorizer/` → `forge-core` workspace
    - Change in `libs/` → all workspaces
-3. Each affected workspace: builds its apps, uploads `api/${app}-${sha}.zip` to S3, updates the TFE workspace variable, triggers a Terraform run
+3. Each affected workspace: builds its apps, uploads `api/${app}-${sha}.zip` to S3, updates the TFE workspace variable with artifact metadata (`version`, `prefix`, `functions`), triggers a Terraform run
 4. Staging deploys run in parallel per workspace
 5. A manual approval gate blocks production
 6. Production deploys run with the same artifacts
