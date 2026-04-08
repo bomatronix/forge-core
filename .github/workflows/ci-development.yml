@@ -43,7 +43,6 @@ jobs:
           DEPLOY_ENV: dev
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
-          S3_FORGE_CORE: ${{ vars.S3_FORGE_CORE }}
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
 
   # ── Deploy to dev ─────────────────────────────────────────────────────────────
@@ -80,11 +79,17 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
       - name: Upload Lambda zips to S3
+        env:
+          S3_BUCKET: ${{ vars.S3_FORGE_CORE }}
         run: |
+          if [ -z "$S3_BUCKET" ]; then
+            echo "::error::S3_FORGE_CORE is not set for the development environment"
+            exit 1
+          fi
           SHORT_SHA=${GITHUB_SHA::7}
           for app in ${{ join(matrix.apps, ' ') }}; do
             zip -j ${app}.zip dist/lambda/${app}/handler.js
-            aws s3 cp ${app}.zip s3://${{ matrix.s3_bucket }}/${{ matrix.lambda_key_prefix }}/${app}-${SHORT_SHA}.zip
+            aws s3 cp ${app}.zip s3://$S3_BUCKET/${{ matrix.lambda_key_prefix }}/${app}-${SHORT_SHA}.zip
             rm ${app}.zip
           done
       - name: Update TFE variable + trigger dev run
