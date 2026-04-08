@@ -82,7 +82,7 @@ PRs only run CI checks — deploys only trigger on direct pushes to the branch.
 | Variable | Example | Description |
 |---|---|---|
 | `AWS_REGION` | `us-east-1` | AWS region (repo-level) |
-| `CLIENT` | `test-client` | Client slug used to derive HCP Terraform workspace names |
+| `CLIENT` | `test-client` | Client slug used to derive HCP Terraform workspace names (repository-level variable) |
 | `AWS_ROLE_TO_ASSUME` | `arn:aws:iam::...` | OIDC role ARN — set per GitHub Environment |
 | `S3_FORGE_CORE` | `forge-core-dev-123456789-api-code` | S3 bucket — set per GitHub Environment |
 

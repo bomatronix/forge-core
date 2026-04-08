@@ -62,14 +62,20 @@ const matrix = affected.map((wsName) => {
   const ws = deployJson.workspaces[wsName]
   const env = ws[deployEnv]
   if (!env) throw new Error(`No '${deployEnv}' entry in deploy.json for workspace '${wsName}'`)
-  const client = process.env.CLIENT ?? wsName
+  const client = (process.env.CLIENT ?? '').trim()
+  if (env.tfe_workspace.includes('${CLIENT}') && !client) {
+    throw new Error(
+      `CLIENT env var is required to resolve tfe_workspace for workspace '${wsName}'. ` +
+        `Set CLIENT as a repository-level GitHub Actions variable.`,
+    )
+  }
 
   return {
     workspace: wsName,
     apps: ws.apps,
     lambda_key_prefix: ws.lambda_key_prefix,
     tfe_workspace: resolveTemplate(env.tfe_workspace, {
-      CLIENT: client,
+      CLIENT: client || wsName,
       DEPLOY_ENV: deployEnv,
       WORKSPACE: wsName,
     }),
