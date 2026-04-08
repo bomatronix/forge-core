@@ -84,10 +84,10 @@ jobs:
           S3_BUCKET: ${{ vars.S3_FORGE_CORE }}
           S3_KMS_KEY_ID: ${{ vars.S3_KMS_KEY_ID }}
           LAMBDA_KEY_PREFIX: ${{ matrix.lambda_key_prefix }}
-          APPS: ${{ join(matrix.apps, ' ') }}
+          UPLOAD_TARGETS: ${{ join(matrix.artifact_targets, ' ') }}
           DEPLOY_ENV_LABEL: development
         run: bash .github/scripts/upload-lambda-zips.sh
       - name: Update TFE variable + trigger dev run
         env:
           TFE_TOKEN: ${{ secrets.TFE_TOKEN }}
-        run: node .github/scripts/deploy-tfe.js ${{ matrix.tfe_workspace }} ${GITHUB_SHA::7} "${{ join(matrix.apps, ',') }}" "${{ matrix.lambda_key_prefix }}"
+        run: node .github/scripts/deploy-tfe.js ${{ matrix.tfe_workspace }} ${GITHUB_SHA::7} "${{ join(matrix.lambda_functions, ',') }}" "${{ matrix.lambda_key_prefix }}"
