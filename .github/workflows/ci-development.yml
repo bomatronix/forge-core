@@ -105,4 +105,4 @@ jobs:
       - name: Update TFE variable + trigger dev run
         env:
           TFE_TOKEN: ${{ secrets.TFE_TOKEN }}
-        run: node .github/scripts/deploy-tfe.js ${{ matrix.tfe_workspace }} ${GITHUB_SHA::7}
+        run: node .github/scripts/deploy-tfe.js ${{ matrix.tfe_workspace }} ${GITHUB_SHA::7} "${{ join(matrix.apps, ',') }}" "${{ matrix.lambda_key_prefix }}"

@@ -1,19 +1,25 @@
 #!/usr/bin/env node
 /**
- * deploy-tfe.js — Updates the api_config_json.artifacts.version variable
- * in a HCP Terraform workspace, then triggers an auto-apply run.
+ * deploy-tfe.js — Updates the api_config_json.artifacts variable in a HCP
+ * Terraform workspace, then triggers an auto-apply run.
  *
- * Usage:  node deploy-tfe.js <workspace_name> <sha>
- * Env:    TFE_TOKEN   — HCP Terraform API token
- *         TFE_ORG     — HCP Terraform organization (default: core-aws)
+ * Usage:
+ *   node deploy-tfe.js <workspace_name> <sha> [functions_csv] [prefix]
+ *
+ * Env:
+ *   TFE_TOKEN   — HCP Terraform API token
+ *   TFE_ORG     — HCP Terraform organization (default: core-aws)
  */
 
-const [, , workspaceName, sha] = process.argv
+const [, , workspaceName, sha, functionsCsv = '', prefixArg = ''] = process.argv
 
 if (!workspaceName || !sha) {
-  console.error('Usage: node deploy-tfe.js <workspace_name> <sha>')
+  console.error('Usage: node deploy-tfe.js <workspace_name> <sha> [functions_csv] [prefix]')
   process.exit(1)
 }
+
+const functions = functionsCsv.split(',').map((value) => value.trim()).filter(Boolean)
+const prefix = prefixArg.trim()
 
 const TFE_TOKEN = process.env.TFE_TOKEN
 const TFE_ORG = process.env.TFE_ORG ?? 'core-aws'
@@ -63,7 +69,7 @@ async function main() {
 
   const varId = configVar.id
 
-  // 3. Parse current value (stored as HCL = JSON expression) and update artifacts.version
+  // 3. Parse current value (stored as HCL = JSON expression) and update artifacts metadata
   let currentValue
   try {
     currentValue = JSON.parse(configVar.attributes.value)
@@ -73,15 +79,31 @@ async function main() {
     )
   }
 
-  const updated = {
-    ...currentValue,
-    artifacts: {
-      ...(currentValue.artifacts ?? {}),
-      version: sha,
-    },
+  const nextArtifacts = {
+    ...(currentValue.artifacts ?? {}),
+    version: sha,
   }
 
-  console.log(`[deploy-tfe] Updating artifacts.version → ${sha}`)
+  if (prefix) {
+    nextArtifacts.prefix = prefix
+  }
+
+  if (functions.length > 0) {
+    nextArtifacts.functions = functions
+  }
+
+  const updated = {
+    ...currentValue,
+    artifacts: nextArtifacts,
+  }
+
+  console.log(
+    `[deploy-tfe] Updating artifacts → ${JSON.stringify({
+      version: nextArtifacts.version,
+      prefix: nextArtifacts.prefix,
+      functions: nextArtifacts.functions,
+    })}`,
+  )
   await tfe('PATCH', `/workspaces/${workspaceId}/vars/${varId}`, {
     data: {
       type: 'vars',
