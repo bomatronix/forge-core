@@ -41,6 +41,7 @@ jobs:
         id: staging
         env:
           DEPLOY_ENV: staging
+          CLIENT: ${{ vars.CLIENT }}
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
@@ -49,6 +50,7 @@ jobs:
         id: prod
         env:
           DEPLOY_ENV: prod
+          CLIENT: ${{ vars.CLIENT }}
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT

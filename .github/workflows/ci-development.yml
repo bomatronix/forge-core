@@ -41,6 +41,7 @@ jobs:
         id: set-matrix
         env:
           DEPLOY_ENV: dev
+          CLIENT: ${{ vars.CLIENT }}
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
