@@ -77,6 +77,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
           S3_BUCKET: ${{ vars.S3_FORGE_CORE }}
+          S3_KMS_KEY_ID: ${{ vars.S3_KMS_KEY_ID }}
         run: |
           if [ -z "$S3_BUCKET" ]; then
             echo "::error::S3_FORGE_CORE is not set for the qa environment"
@@ -85,7 +86,11 @@ jobs:
           SHORT_SHA=${GITHUB_SHA::7}
           for app in ${{ join(matrix.apps, ' ') }}; do
             zip -j ${app}.zip dist/lambda/${app}/handler.js
-            aws s3 cp ${app}.zip s3://$S3_BUCKET/${{ matrix.lambda_key_prefix }}/${app}-${SHORT_SHA}.zip
+            s3_args=(--sse aws:kms)
+            if [ -n "$S3_KMS_KEY_ID" ]; then
+              s3_args+=(--sse-kms-key-id "$S3_KMS_KEY_ID")
+            fi
+            aws s3 cp ${app}.zip s3://$S3_BUCKET/${{ matrix.lambda_key_prefix }}/${app}-${SHORT_SHA}.zip "${s3_args[@]}"
             rm ${app}.zip
           done
       - name: Update TFE variable + trigger QA run
