@@ -51,7 +51,7 @@ for target in "${targets[@]}"; do
     function_name="$bundle"
   fi
 
-  artifact_path="dist/lambda/${bundle}/handler.js"
+  artifact_path="dist/lambda/${bundle}/${bundle}.js"
   object_key="${LAMBDA_KEY_PREFIX}/${function_name}-${short_sha}.zip"
   zip_path="${bundle}-${function_name}.zip"
 

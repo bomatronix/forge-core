@@ -18,7 +18,7 @@ await build({
   bundle: true,
   platform: 'node',
   target: 'node20',
-  outfile: `dist/lambda/${app}/handler.js`,
+  outfile: `dist/lambda/${app}/${app}.js`,
   format: 'cjs',
   minify: true,
   sourcemap: true,
@@ -31,4 +31,4 @@ await build({
   ],
 })
 
-console.log(`Lambda bundle created: dist/lambda/${app}/handler.js`)
+console.log(`Lambda bundle created: dist/lambda/${app}/${app}.js`)
