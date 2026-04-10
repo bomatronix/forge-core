@@ -53,6 +53,7 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
     });
 
     if (!state.isSignedIn) {
+      console.error('[ClerkTokenVerifier] authenticateRequest not signed in:', state.reason, state.message);
       return null;
     }
 
