@@ -84,7 +84,8 @@ export const handler = async (
       return denyPolicy(event.methodArn);
     }
     return allowPolicy(event.methodArn, session);
-  } catch {
+  } catch (err) {
+    console.error('[authorizer] token verification failed:', err);
     return denyPolicy(event.methodArn);
   }
 };
