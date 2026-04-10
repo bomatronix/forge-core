@@ -30,7 +30,19 @@ const isArn = (value: string) => value.startsWith('arn:aws:secretsmanager:');
 async function resolveSecret(value: string): Promise<string> {
   if (!isArn(value)) return value;
   const result = await secretsClient.send(new GetSecretValueCommand({ SecretId: value }));
-  return result.SecretString ?? '';
+  const raw = result.SecretString ?? '';
+  // Secrets Manager stores values as JSON objects (e.g. {"AUTH_SECRET_KEY":"sk_test_..."})
+  // or as plain strings. Unwrap single-key JSON objects automatically.
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed !== null && typeof parsed === 'object') {
+      const values = Object.values(parsed as Record<string, unknown>);
+      if (values.length === 1 && typeof values[0] === 'string') return values[0];
+    }
+  } catch {
+    // plain string — use as-is
+  }
+  return raw;
 }
 
 function resolveAdapter(provider: string, secretKey: string): AuthTokenVerifier {

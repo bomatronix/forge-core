@@ -1,4 +1,5 @@
 .DS_Store
+*.postman_collection.json
 node_modules/
 dist/
 .env
