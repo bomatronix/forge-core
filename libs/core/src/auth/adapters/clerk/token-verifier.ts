@@ -44,8 +44,10 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
       secretKey: this.secretKey,
       publishableKey: this.publishableKey,
     });
+    // Session tokens (non-JWT) must be passed via the __session cookie —
+    // Clerk's authenticateRequest() only accepts JWTs in the Authorization header.
     const mockRequest = new Request('http://localhost', {
-      headers: { authorization: `Bearer ${token}` },
+      headers: { cookie: `__session=${token}` },
     });
     const state = await clerk.authenticateRequest(mockRequest, {
       secretKey: this.secretKey,
