@@ -54,8 +54,8 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
       publishableKey: this.publishableKey,
     });
 
-    if (!state.isSignedIn) {
-      console.error('[ClerkTokenVerifier] authenticateRequest not signed in:', state.reason, state.message);
+    if (!state.isAuthenticated) {
+      console.error('[ClerkTokenVerifier] authenticateRequest not authenticated:', state.reason, state.message);
       return null;
     }
 
