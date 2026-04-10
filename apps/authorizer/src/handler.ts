@@ -19,8 +19,10 @@ import type { AuthSession } from '@forge-core/core/auth/types';
  * The context object is forwarded to the main Lambda via event.requestContext.authorizer.
  *
  * Environment variables (plain values or Secrets Manager ARNs):
- *   AUTH_PROVIDER   — provider key: 'clerk' (default) | 'okta' | 'next-auth'
- *   AUTH_SECRET_KEY — provider-specific secret key
+ *   AUTH_PROVIDER       — provider key: 'clerk' (default) | 'okta' | 'next-auth'
+ *   AUTH_SECRET_KEY     — provider-specific secret key
+ *   AUTH_PUBLISHABLE_KEY — Clerk publishable key (pk_test_/pk_live_); plain value or
+ *                          Secrets Manager ARN. Required for Clerk testing tokens (non-JWT).
  */
 
 const secretsClient = new SecretsManagerClient({});
@@ -45,9 +47,9 @@ async function resolveSecret(value: string): Promise<string> {
   return raw;
 }
 
-function resolveAdapter(provider: string, secretKey: string): AuthTokenVerifier {
+function resolveAdapter(provider: string, secretKey: string, publishableKey?: string): AuthTokenVerifier {
   switch (provider) {
-    case 'clerk':     return new ClerkTokenVerifier(secretKey);
+    case 'clerk':     return new ClerkTokenVerifier(secretKey, publishableKey);
     case 'okta':      return new OktaTokenVerifier();
     case 'next-auth': return new NextAuthTokenVerifier();
     default:          throw new Error(`Unsupported AUTH_PROVIDER: '${provider}'`);
@@ -60,12 +62,13 @@ let adapter: AuthTokenVerifier | null = null;
 async function getAdapter(): Promise<AuthTokenVerifier> {
   if (adapter) return adapter;
 
-  const [provider, secretKey] = await Promise.all([
+  const [provider, secretKey, publishableKey] = await Promise.all([
     resolveSecret(process.env.AUTH_PROVIDER ?? 'clerk'),
     resolveSecret(process.env.AUTH_SECRET_KEY ?? ''),
+    resolveSecret(process.env.AUTH_PUBLISHABLE_KEY ?? ''),
   ]);
 
-  adapter = resolveAdapter(provider, secretKey);
+  adapter = resolveAdapter(provider, secretKey, publishableKey || undefined);
   return adapter;
 }
 
