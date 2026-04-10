@@ -108,11 +108,11 @@ describe('Lambda Authorizer handler', () => {
     expect(result.context?.orgId).toBe('');
   });
 
-  it('throws if AUTH_PROVIDER is set to lambda-authorizer (invalid for authorizer Lambda)', async () => {
-    process.env.AUTH_PROVIDER = 'lambda-authorizer';
+  it('returns Deny policy for unsupported AUTH_PROVIDER', async () => {
+    process.env.AUTH_PROVIDER = 'unsupported-provider';
 
-    await expect(handler(mockEvent('any-token'))).rejects.toThrow(
-      "AUTH_PROVIDER='lambda-authorizer' is invalid",
-    );
+    const result = await handler(mockEvent('any-token'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
   });
 });
