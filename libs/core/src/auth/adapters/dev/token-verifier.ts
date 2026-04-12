@@ -43,6 +43,7 @@ export class DevTokenVerifier implements AuthTokenVerifier {
         avatarUrl: null,
       },
       tenantId: (payload['org_id'] as string) ?? null,
+      permissions: ['*'],
     };
   }
 }

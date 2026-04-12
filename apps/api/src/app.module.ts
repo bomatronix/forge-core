@@ -1,21 +1,21 @@
 import { Module } from '@nestjs/common';
 import { CoreModule } from '@forge-core/core';
-import { HealthController } from './health/health.controller';
 import { AuthController } from './auth/auth.controller';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
     CoreModule.forRoot({
       // Production (Lambda + API Gateway): AUTH_PROVIDER=lambda-authorizer
-      // Local dev (no API Gateway):        AUTH_PROVIDER=clerk (or next-auth, okta)
+      // Local dev with auth-handler:       AUTH_PROVIDER=auth-handler
       authProvider:
         (process.env.AUTH_PROVIDER as import('@forge-core/core').AuthProviderKey) ??
-        'lambda-authorizer',
+        (process.env.AWS_LAMBDA_FUNCTION_NAME ? 'lambda-authorizer' : 'auth-handler'),
       authSecretKey: process.env.AUTH_SECRET_KEY,
       authPublishableKey: process.env.AUTH_PUBLISHABLE_KEY,
       allowedOrgIds: process.env.ALLOWED_ORG_IDS?.split(',').filter(Boolean),
     }),
   ],
-  controllers: [HealthController, AuthController],
+  controllers: [AuthController, HealthController],
 })
 export class AppModule {}

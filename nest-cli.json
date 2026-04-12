@@ -53,6 +53,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/authorizer/tsconfig.app.json"
       }
+    },
+    "auth-handler": {
+      "type": "application",
+      "root": "apps/auth-handler",
+      "sourceRoot": "apps/auth-handler/src",
+      "entryFile": "main",
+      "compilerOptions": {
+        "tsConfigPath": "apps/auth-handler/tsconfig.app.json"
+      }
     }
   }
 }
