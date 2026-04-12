@@ -35,6 +35,11 @@ async function bootstrap(): Promise<Handler> {
 const handlerPromise = bootstrap();
 
 export const handler: Handler = async (event: APIGatewayProxyEvent, context: Context, callback) => {
+  // @codegenie/serverless-express prefers event.pathParameters.proxy over event.path.
+  // For a nested {proxy+} resource (e.g. "auth/{proxy+}"), the proxy param captures only
+  // the sub-path (e.g. ".well-known/openid-configuration"), stripping the "auth/" prefix.
+  // Clearing it forces serverless-express to fall back to event.path (full path including /auth).
+  const normalizedEvent = { ...event, pathParameters: { ...event.pathParameters, proxy: undefined } };
   const resolvedHandler = await handlerPromise;
-  return resolvedHandler(event, context, callback);
+  return resolvedHandler(normalizedEvent as typeof event, context, callback);
 };
