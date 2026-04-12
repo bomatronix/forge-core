@@ -2,6 +2,13 @@ import { createClerkClient, verifyToken as clerkVerifyToken } from '@clerk/backe
 import type { AuthTokenVerifier } from '../../contracts';
 import type { AuthSession } from '../../types';
 
+// TODO(auth): Revisit shared logging for low-level auth adapters and standalone auth paths
+// so we can standardize this without forcing Nest Logger into every runtime context.
+function logError(message: string, detail: unknown): void {
+  const rendered = detail instanceof Error ? detail.stack ?? detail.message : String(detail);
+  process.stderr.write(`${message} ${rendered}\n`);
+}
+
 /**
  * Clerk auth adapter — only file allowed to import from @clerk/backend.
  *
@@ -45,7 +52,7 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
           return oauthSession;
         }
 
-        console.error('[ClerkTokenVerifier] JWT verification failed:', error);
+        logError('[ClerkTokenVerifier] JWT verification failed:', error);
         return null;
       }
     }
@@ -72,7 +79,10 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
     });
 
     if (!state.isAuthenticated) {
-      console.error('[ClerkTokenVerifier] authenticateRequest not authenticated:', state.reason, state.message);
+      logError(
+        '[ClerkTokenVerifier] authenticateRequest not authenticated:',
+        `${state.reason} ${state.message ?? ''}`.trim(),
+      );
       return null;
     }
 

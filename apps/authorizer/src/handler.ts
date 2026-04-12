@@ -25,6 +25,13 @@ const secretsClient = new SecretsManagerClient({});
 
 const isArn = (value: string) => value.startsWith('arn:aws:secretsmanager:');
 
+// TODO(auth): Revisit shared logging for standalone auth paths so this Lambda and the
+// low-level auth adapters can use one consistent approach without unnecessary Nest coupling.
+function logError(message: string, error: unknown): void {
+  const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+  process.stderr.write(`${message} ${detail}\n`);
+}
+
 async function resolveSecret(value: string): Promise<string> {
   if (!value || !isArn(value)) return value;
 
@@ -85,7 +92,7 @@ export const handler = async (
     }
     return allowPolicy(event.methodArn, session);
   } catch (err) {
-    console.error('[authorizer] token verification failed:', err);
+    logError('[authorizer] token verification failed:', err);
     return denyPolicy(event.methodArn);
   }
 };

@@ -10,7 +10,6 @@ import {
   authSessionFromClaims,
   buildJwksDocument,
   buildUserInfo,
-  getAuthHandlerRuntimeConfig,
   hashOpaqueToken,
   issueAccessToken,
   issueIdToken,
