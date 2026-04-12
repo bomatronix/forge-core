@@ -111,7 +111,7 @@ describe('OidcProviderService', () => {
         scopes: ['openid', 'profile', 'email', 'agents:read'],
         grantTypes: ['authorization_code'],
         responseTypes: ['code'],
-        defaultConnectionId: 'dev',
+        defaultConnectionId: 'local',
       },
     ]);
 
