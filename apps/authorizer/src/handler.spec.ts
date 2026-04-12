@@ -1,56 +1,54 @@
 import type { APIGatewayTokenAuthorizerEvent } from 'aws-lambda';
-
-// Mock @clerk/backend before importing the handler so ClerkTokenVerifier uses the mock
-jest.mock('@clerk/backend', () => ({
-  verifyToken: jest.fn(),
-}));
-
-import { verifyToken as clerkVerifyToken } from '@clerk/backend';
+import { getAuthHandlerRuntimeConfig, issueAccessToken, issueIdToken } from '@forge-core/core/auth/platform-tokens';
 import { handler } from './handler';
 
-const mockVerifyToken = clerkVerifyToken as jest.MockedFunction<typeof clerkVerifyToken>;
+const runtime = getAuthHandlerRuntimeConfig();
 
-// Tokens must start with 'eyJ' so ClerkTokenVerifier routes to the mocked
-// clerkVerifyToken() path rather than the authenticateRequest() path.
 const mockEvent = (token: string): APIGatewayTokenAuthorizerEvent => ({
   type: 'TOKEN',
-  authorizationToken: `Bearer eyJ${token}`,
-  methodArn: 'arn:aws:execute-api:us-east-1:123456789:abc123/prod/GET/api/agents',
+  authorizationToken: token ? `Bearer ${token}` : '',
+  methodArn: 'arn:aws:execute-api:us-east-1:123456789:abc123/prod/GET/api/auth/me',
 });
 
-const mockPayload = {
-  sub: 'user_abc123',
-  email: 'alice@example.com',
-  name: 'Alice',
-  image_url: 'https://example.com/avatar.jpg',
-  org_id: 'org_xyz',
-  // minimal required JWT fields
-  iss: 'https://clerk.example.com',
-  aud: 'forge-core',
-  exp: Math.floor(Date.now() / 1000) + 3600,
-  iat: Math.floor(Date.now() / 1000),
-  nbf: Math.floor(Date.now() / 1000),
-  jti: 'jwt_abc',
-  sid: 'sess_abc',
-  azp: 'forge-core',
-};
+const buildUserToken = (
+  overrides: Partial<{
+    subject: string;
+    email: string | null;
+    name: string | null;
+    avatarUrl: string | null;
+    orgId: string | null;
+    permissions: string[];
+    scope: string[];
+  }> = {},
+) =>
+  issueAccessToken(runtime, {
+    subject: 'subject' in overrides ? overrides.subject ?? 'user_abc123' : 'user_abc123',
+    clientId: 'forge-swagger-ui',
+    email: 'email' in overrides ? overrides.email ?? null : 'alice@example.com',
+    name: 'name' in overrides ? overrides.name ?? null : 'Alice',
+    avatarUrl: 'avatarUrl' in overrides ? overrides.avatarUrl ?? null : 'https://example.com/avatar.jpg',
+    orgId: 'orgId' in overrides ? overrides.orgId ?? null : 'org_xyz',
+    permissions: overrides.permissions ?? ['org:agents:read', 'org:agents:write'],
+    scope: overrides.scope ?? ['openid', 'profile', 'email', 'agents:read', 'agents:write'],
+    tokenKind: 'user',
+  });
 
 beforeEach(() => {
-  jest.clearAllMocks();
-  process.env.AUTH_PROVIDER = 'clerk';
-  process.env.AUTH_SECRET_KEY = 'sk_test_fake';
+  jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  delete process.env.AUTH_HANDLER_ISSUER;
+  delete process.env.AUTH_HANDLER_AUDIENCE;
+  delete process.env.AUTH_HANDLER_PUBLIC_KEY;
 });
 
 afterEach(() => {
-  delete process.env.AUTH_PROVIDER;
-  delete process.env.AUTH_SECRET_KEY;
+  jest.restoreAllMocks();
 });
 
 describe('Lambda Authorizer handler', () => {
-  it('returns Allow policy with user context for a valid token', async () => {
-    mockVerifyToken.mockResolvedValueOnce(mockPayload as never);
+  it('returns Allow policy with normalized user context for a valid platform access token', async () => {
+    const token = buildUserToken();
 
-    const result = await handler(mockEvent('valid-jwt'));
+    const result = await handler(mockEvent(token));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
     expect(result.principalId).toBe('user_abc123');
@@ -60,59 +58,57 @@ describe('Lambda Authorizer handler', () => {
       name: 'Alice',
       avatarUrl: 'https://example.com/avatar.jpg',
       orgId: 'org_xyz',
+      permissions: 'org:agents:read,org:agents:write',
     });
   });
 
-  it('returns Deny policy when verifyToken returns null (invalid token)', async () => {
-    mockVerifyToken.mockResolvedValueOnce(null as never);
-
-    const result = await handler(mockEvent('invalid-jwt'));
+  it('returns Deny policy when the token is missing', async () => {
+    const result = await handler(mockEvent(''));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
     expect(result.principalId).toBe('unauthorized');
     expect(result.context).toBeUndefined();
   });
 
-  it('returns Deny policy when verifyToken throws (expired, bad signature, etc.)', async () => {
-    mockVerifyToken.mockRejectedValueOnce(new Error('Token expired'));
-
-    const result = await handler(mockEvent('expired-jwt'));
+  it('returns Deny policy when the token is not an auth-handler-issued access token', async () => {
+    const result = await handler(mockEvent('eyJnot-a-real-platform-token'));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
   });
 
-  it('strips Bearer prefix before passing token to adapter', async () => {
-    mockVerifyToken.mockResolvedValueOnce(mockPayload as never);
+  it('returns Deny policy for auth-handler id_tokens', async () => {
+    const idToken = issueIdToken(runtime, {
+      clientId: 'forge-swagger-ui',
+      subject: 'user_abc123',
+      email: 'alice@example.com',
+      name: 'Alice',
+      avatarUrl: 'https://example.com/avatar.jpg',
+      orgId: 'org_xyz',
+      permissions: ['org:agents:read'],
+    });
 
-    await handler(mockEvent('my-raw-token'));
+    const result = await handler(mockEvent(idToken));
 
-    expect(mockVerifyToken).toHaveBeenCalledWith('eyJmy-raw-token', expect.any(Object));
+    expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
   });
 
-  it('context values are strings (REST API authorizer requirement)', async () => {
-    mockVerifyToken.mockResolvedValueOnce({
-      ...mockPayload,
-      email: undefined,
-      name: undefined,
-      image_url: undefined,
-      org_id: undefined,
-    } as never);
+  it('context values are always strings for REST API authorizer compatibility', async () => {
+    const token = buildUserToken({
+      email: null,
+      name: null,
+      avatarUrl: null,
+      orgId: null,
+      permissions: [],
+      scope: ['openid'],
+    });
 
-    const result = await handler(mockEvent('valid-jwt'));
+    const result = await handler(mockEvent(token));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
-    // Undefined fields must become empty strings, not undefined/null
     expect(result.context?.email).toBe('');
     expect(result.context?.name).toBe('');
     expect(result.context?.avatarUrl).toBe('');
     expect(result.context?.orgId).toBe('');
-  });
-
-  it('returns Deny policy for unsupported AUTH_PROVIDER', async () => {
-    process.env.AUTH_PROVIDER = 'unsupported-provider';
-
-    const result = await handler(mockEvent('any-token'));
-
-    expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
+    expect(result.context?.permissions).toBe('');
   });
 });

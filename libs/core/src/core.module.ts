@@ -2,8 +2,8 @@ import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
 import type { AuthProviderKey } from './auth/contracts';
-import { resolveAuthAdapter } from './auth/auth-registry';
-import { AUTH_TOKEN_VERIFIER } from './auth/auth.constants';
+import { resolveAuthAdapter, resolveAuthIssuer } from './auth/auth-registry';
+import { AUTH_TOKEN_VERIFIER, AUTH_TOKEN_ISSUER } from './auth/auth.constants';
 import { AuthGuard } from './auth/guards/auth.guard';
 import { TenantGuard } from './auth/guards/tenant.guard';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
@@ -42,6 +42,7 @@ export class CoreModule {
   static forRoot(options: CoreModuleOptions = {}): DynamicModule {
     const provider = options.authProvider ?? 'clerk';
     const adapter = resolveAuthAdapter(provider, options.authSecretKey, options.authPublishableKey);
+    const issuer = resolveAuthIssuer(provider, options.authSecretKey);
 
     return {
       module: CoreModule,
@@ -59,6 +60,10 @@ export class CoreModule {
         {
           provide: AUTH_TOKEN_VERIFIER,
           useValue: adapter,
+        },
+        {
+          provide: AUTH_TOKEN_ISSUER,
+          useValue: issuer,
         },
         {
           provide: APP_GUARD,
@@ -81,7 +86,7 @@ export class CoreModule {
           useValue: createValidationPipe(),
         },
       ],
-      exports: [AUTH_TOKEN_VERIFIER],
+      exports: [AUTH_TOKEN_VERIFIER, AUTH_TOKEN_ISSUER],
     };
   }
 }

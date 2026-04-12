@@ -1,10 +1,11 @@
 {
   "workspaces": {
     "forge-core": {
-      "apps": ["api", "authorizer"],
+      "apps": ["api", "authorizer", "auth-handler"],
       "artifacts": {
         "api": ["crud", "presign"],
-        "authorizer": ["authorizer"]
+        "authorizer": ["authorizer"],
+        "auth-handler": ["auth-handler"]
       },
       "lambda_key_prefix": "api",
       "dev": {

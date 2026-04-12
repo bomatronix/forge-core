@@ -35,6 +35,7 @@ export class LambdaAuthorizerContextReader implements AuthTokenVerifier {
         avatarUrl: context.avatarUrl || null,
       },
       tenantId: context.orgId || null,
+      permissions: context.permissions ? context.permissions.split(',').filter(Boolean) : [],
     };
   }
 }

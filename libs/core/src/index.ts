@@ -4,22 +4,49 @@ export type { CoreModuleOptions } from './core.module';
 export { CORE_MODULE_OPTIONS } from './core.constants';
 
 // Auth — contracts & types
-export type { AuthProviderKey, AuthTokenVerifier } from './auth/contracts';
+export type { AuthProviderKey, AuthTokenVerifier, AuthTokenIssuer, TokenResponse } from './auth/contracts';
 export type { AuthUser, AuthSession } from './auth/types';
-export { AUTH_TOKEN_VERIFIER } from './auth/auth.constants';
+export { AUTH_TOKEN_VERIFIER, AUTH_TOKEN_ISSUER } from './auth/auth.constants';
 export { NotImplementedError } from './auth/not-implemented.error';
-export { resolveAuthAdapter } from './auth/auth-registry';
+export { resolveAuthAdapter, resolveAuthIssuer } from './auth/auth-registry';
 
 // Auth — guards
 export { AuthGuard } from './auth/guards/auth.guard';
 export { TenantGuard } from './auth/guards/tenant.guard';
 
-// Auth — adapters
-export { ClerkTokenVerifier } from './auth/adapters/clerk/token-verifier';
-export { NextAuthTokenVerifier } from './auth/adapters/next-auth/token-verifier';
-export { OktaTokenVerifier } from './auth/adapters/okta/token-verifier';
-export { LambdaAuthorizerContextReader } from './auth/adapters/lambda-authorizer/context-reader';
-export { DevTokenVerifier } from './auth/adapters/dev/token-verifier';
+// Auth — adapters are intentionally NOT exported from the public barrel.
+// Application code must use resolveAuthAdapter() / resolveAuthIssuer() or inject
+// via AUTH_TOKEN_VERIFIER / AUTH_TOKEN_ISSUER tokens. Direct adapter imports are
+// only allowed in the standalone Lambda handlers (apps/authorizer) where NestJS DI
+// is unavailable and bundle size requires targeted deep-path imports.
+export {
+  buildJwksDocument,
+  buildUserInfo,
+  getAuthHandlerRuntimeConfig,
+  getSigningKeyId,
+  hashOpaqueToken,
+  issueAccessToken,
+  issueIdToken,
+  normalizePem,
+  verifyIssuedToken,
+} from './auth/platform-tokens';
+export type {
+  AccessTokenSubject,
+  AuthHandlerRuntimeConfig,
+} from './auth/platform-tokens';
+export type {
+  AuthClientConfig,
+  AuthorizationCodeRecord,
+  BrowserSession,
+  ConsentRecord,
+  IssuedTokenClaims,
+  OAuthGrantType,
+  OAuthResponseType,
+  RefreshTokenRecord,
+  UpstreamConnectionConfig,
+  UpstreamProfile,
+  UserInfoResponse,
+} from './auth/oauth.types';
 
 // Decorators
 export { CurrentUser } from './auth/decorators/current-user.decorator';

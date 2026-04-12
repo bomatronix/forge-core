@@ -1,74 +1,81 @@
-import type { APIGatewayTokenAuthorizerEvent, APIGatewayAuthorizerResult } from 'aws-lambda';
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { ClerkTokenVerifier } from '@forge-core/core/auth/adapters/clerk/token-verifier';
-import { OktaTokenVerifier } from '@forge-core/core/auth/adapters/okta/token-verifier';
-import { NextAuthTokenVerifier } from '@forge-core/core/auth/adapters/next-auth/token-verifier';
+import type { APIGatewayAuthorizerResult, APIGatewayTokenAuthorizerEvent } from 'aws-lambda';
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+// Direct adapter import is intentional: this is a standalone Lambda with no NestJS DI container.
+// Importing from the deep adapter path (not from @forge-core/core barrel) keeps the bundle
+// small (~150 KB) by avoiding pulling in the full NestJS runtime.
+import { AuthHandlerTokenVerifier } from '@forge-core/core/auth/adapters/platform/token-verifier';
+import { normalizePem } from '@forge-core/core/auth/platform-tokens';
 import type { AuthTokenVerifier } from '@forge-core/core/auth/contracts';
 import type { AuthSession } from '@forge-core/core/auth/types';
 
 /**
- * Provider-agnostic Lambda Authorizer for API Gateway REST API (token-based).
+ * Lambda authorizer for platform access tokens issued by apps/auth-handler.
  *
- * Imports adapters directly (not via resolveAuthAdapter) to avoid pulling in
- * the full NestJS/Express runtime — keeps the bundle ~150 KB.
- *
- * On success: returns an IAM Allow policy + user claims in the context object.
- * On failure: returns an IAM Deny policy.
- *
- * API Gateway caches the result by token value (default TTL: 300s, max: 3600s).
- * The context object is forwarded to the main Lambda via event.requestContext.authorizer.
+ * The API no longer trusts upstream provider-native tokens directly. Instead,
+ * auth-handler federates upstream login and issues the platform JWT that this
+ * authorizer validates before forwarding the normalized user context.
  *
  * Environment variables (plain values or Secrets Manager ARNs):
- *   AUTH_PROVIDER       — provider key: 'clerk' (default) | 'okta' | 'next-auth'
- *   AUTH_SECRET_KEY     — provider-specific secret key
- *   AUTH_PUBLISHABLE_KEY — Clerk publishable key (pk_test_/pk_live_); plain value or
- *                          Secrets Manager ARN. Required for Clerk testing tokens (non-JWT).
+ *   AUTH_HANDLER_ISSUER
+ *   AUTH_HANDLER_AUDIENCE
+ *   AUTH_HANDLER_PUBLIC_KEY
  */
 
 const secretsClient = new SecretsManagerClient({});
 
 const isArn = (value: string) => value.startsWith('arn:aws:secretsmanager:');
 
+// TODO(auth): Revisit shared logging for standalone auth paths so this Lambda and the
+// low-level auth adapters can use one consistent approach without unnecessary Nest coupling.
+function logError(message: string, error: unknown): void {
+  const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+  process.stderr.write(`${message} ${detail}\n`);
+}
+
 async function resolveSecret(value: string): Promise<string> {
-  if (!isArn(value)) return value;
+  if (!value || !isArn(value)) return value;
+
   const result = await secretsClient.send(new GetSecretValueCommand({ SecretId: value }));
   const raw = result.SecretString ?? '';
-  // Secrets Manager stores values as JSON objects (e.g. {"AUTH_SECRET_KEY":"sk_test_..."})
-  // or as plain strings. Unwrap single-key JSON objects automatically.
+
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed !== null && typeof parsed === 'object') {
       const values = Object.values(parsed as Record<string, unknown>);
-      if (values.length === 1 && typeof values[0] === 'string') return values[0];
+      if (values.length === 1 && typeof values[0] === 'string') {
+        return values[0];
+      }
     }
   } catch {
-    // plain string — use as-is
+    // Plain string secrets are also supported.
   }
+
   return raw;
 }
 
-function resolveAdapter(provider: string, secretKey: string, publishableKey?: string): AuthTokenVerifier {
-  switch (provider) {
-    case 'clerk':     return new ClerkTokenVerifier(secretKey, publishableKey);
-    case 'okta':      return new OktaTokenVerifier();
-    case 'next-auth': return new NextAuthTokenVerifier();
-    default:          throw new Error(`Unsupported AUTH_PROVIDER: '${provider}'`);
-  }
+// Wraps concrete adapter instantiation — keeps the pattern consistent with multi-provider
+// handlers and makes it easy to add other providers here without changing call sites.
+function resolveAdapter(issuer?: string, audience?: string, publicKey?: string): AuthTokenVerifier {
+  return new AuthHandlerTokenVerifier({ issuer, audience, publicKey });
 }
 
-// Resolved at cold start and cached across warm invocations.
 let adapter: AuthTokenVerifier | null = null;
 
 async function getAdapter(): Promise<AuthTokenVerifier> {
   if (adapter) return adapter;
 
-  const [provider, secretKey, publishableKey] = await Promise.all([
-    resolveSecret(process.env.AUTH_PROVIDER ?? 'clerk'),
-    resolveSecret(process.env.AUTH_SECRET_KEY ?? ''),
-    resolveSecret(process.env.AUTH_PUBLISHABLE_KEY ?? ''),
+  const [issuer, audience, publicKey] = await Promise.all([
+    resolveSecret(process.env.AUTH_HANDLER_ISSUER ?? ''),
+    resolveSecret(process.env.AUTH_HANDLER_AUDIENCE ?? ''),
+    resolveSecret(process.env.AUTH_HANDLER_PUBLIC_KEY ?? ''),
   ]);
 
-  adapter = resolveAdapter(provider, secretKey, publishableKey || undefined);
+  adapter = resolveAdapter(
+    issuer || undefined,
+    audience || undefined,
+    normalizePem(publicKey) || undefined,
+  );
+
   return adapter;
 }
 
@@ -85,15 +92,11 @@ export const handler = async (
     }
     return allowPolicy(event.methodArn, session);
   } catch (err) {
-    console.error('[authorizer] token verification failed:', err);
+    logError('[authorizer] token verification failed:', err);
     return denyPolicy(event.methodArn);
   }
 };
 
-/**
- * REST API authorizer context values must be strings.
- * The LambdaAuthorizerContextReader in the main Lambda reads these keys.
- */
 function allowPolicy(methodArn: string, session: AuthSession): APIGatewayAuthorizerResult {
   return {
     principalId: session.user.id,
@@ -113,6 +116,7 @@ function allowPolicy(methodArn: string, session: AuthSession): APIGatewayAuthori
       name: session.user.name ?? '',
       avatarUrl: session.user.avatarUrl ?? '',
       orgId: session.tenantId ?? '',
+      permissions: session.permissions.join(','),
     },
   };
 }

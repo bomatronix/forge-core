@@ -5,6 +5,7 @@
   "packageManager": "pnpm@9.11.0",
   "scripts": {
     "dev": "nest start api --watch",
+    "dev:auth-handler": "PORT=3002 nest start auth-handler --watch",
     "dev:debug": "nest start api --debug --watch",
     "clean": "rm -rf dist && find apps libs -type f \\( -name '*.js' -o -name '*.d.ts' -o -name '*.js.map' \\) ! -name 'jest.config.js' -delete",
     "prebuild": "pnpm clean",

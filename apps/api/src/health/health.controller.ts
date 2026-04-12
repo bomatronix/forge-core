@@ -18,4 +18,14 @@ export class HealthController {
       service: 'forge-core',
     };
   }
+
+  @Get('health/protected')
+  protectedHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      service: 'forge-core',
+      authenticated: true,
+    };
+  }
 }

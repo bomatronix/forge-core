@@ -53,6 +53,7 @@ export class AuthGuard implements CanActivate {
     const req = request as unknown as Record<string, unknown>;
     req['user'] = session.user;
     req['tenantId'] = session.tenantId;
+    req['permissions'] = session.permissions;
 
     return true;
   }
