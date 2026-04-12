@@ -4,7 +4,7 @@ export type OAuthResponseType = 'code';
 
 export type AuthClientType = 'public' | 'confidential';
 
-export type UpstreamConnectionType = 'dev' | 'oidc' | 'clerk';
+export type UpstreamConnectionType = 'dev' | 'oidc';
 
 export interface AuthClientConfig {
   clientId: string;

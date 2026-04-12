@@ -12,7 +12,7 @@ const DEFAULT_CLIENTS: AuthClientConfig[] = [
     scopes: ['openid', 'profile', 'email', 'offline_access', 'agents:read', 'agents:write'],
     grantTypes: ['authorization_code', 'refresh_token'],
     responseTypes: ['code'],
-    defaultConnectionId: 'dev',
+    defaultConnectionId: 'local',
   },
   {
     clientId: 'forge-local-spa',
@@ -23,7 +23,7 @@ const DEFAULT_CLIENTS: AuthClientConfig[] = [
     scopes: ['openid', 'profile', 'email', 'offline_access', 'agents:read', 'agents:write'],
     grantTypes: ['authorization_code', 'refresh_token'],
     responseTypes: ['code'],
-    defaultConnectionId: 'dev',
+    defaultConnectionId: 'local',
   },
   {
     clientId: 'forge-machine-client',
@@ -48,7 +48,7 @@ const DEFAULT_CLIENTS: AuthClientConfig[] = [
     scopes: ['openid', 'profile', 'email', 'offline_access', 'agents:read', 'agents:write'],
     grantTypes: ['authorization_code', 'refresh_token'],
     responseTypes: ['code'],
-    defaultConnectionId: 'dev',
+    defaultConnectionId: 'local',
   },
 ];
 
@@ -71,36 +71,11 @@ function mergeClients(defaultClients: AuthClientConfig[], configuredClients: Aut
   return Array.from(merged.values());
 }
 
-function buildDefaultConnections(env: NodeJS.ProcessEnv = process.env): UpstreamConnectionConfig[] {
-  const connections: UpstreamConnectionConfig[] = [
-    {
-      id: 'dev',
-      name: 'Local Development',
-      type: 'dev',
-    },
-  ];
-
-  const connectionId = env.AUTH_HANDLER_CLERK_CONNECTION_ID?.trim() || 'clerk';
-  const connectionName = env.AUTH_HANDLER_CLERK_CONNECTION_NAME?.trim() || 'Clerk';
-  const discoveryUrl = env.AUTH_HANDLER_CLERK_DISCOVERY_URL?.trim();
-  const clientId = env.AUTH_HANDLER_CLERK_CLIENT_ID?.trim();
-  const clientSecret = env.AUTH_HANDLER_CLERK_CLIENT_SECRET?.trim();
-  const scopes = env.AUTH_HANDLER_CLERK_SCOPES?.trim().split(/\s+/).filter(Boolean);
-
-  if (discoveryUrl && clientId) {
-    connections.push({
-      id: connectionId,
-      name: connectionName,
-      type: 'clerk',
-      discoveryUrl,
-      clientId,
-      clientSecret: clientSecret || undefined,
-      scopes: scopes && scopes.length > 0 ? scopes : ['openid', 'profile', 'email'],
-    });
-  }
-
-  return connections;
-}
+const LOCAL_CONNECTION: UpstreamConnectionConfig = {
+  id: 'local',
+  name: 'Local Development',
+  type: 'dev',
+};
 
 function mergeConnections(
   defaultConnections: UpstreamConnectionConfig[],
@@ -137,7 +112,7 @@ export class AuthHandlerConfigService {
       process.env.AUTH_HANDLER_CONNECTIONS_JSON,
       [],
     );
-    this.connections = mergeConnections(buildDefaultConnections(), configuredConnections);
+    this.connections = mergeConnections([LOCAL_CONNECTION], configuredConnections);
   }
 
   getRuntimeConfig(): AuthHandlerRuntimeConfig {
