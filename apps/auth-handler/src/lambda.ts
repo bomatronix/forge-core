@@ -3,6 +3,7 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import serverlessExpress from '@codegenie/serverless-express';
 import express from 'express';
 import type { Handler, Context, APIGatewayProxyEvent } from 'aws-lambda';
+import { resolveSecretsToEnv } from '@forge-core/core';
 import { AppModule } from './app.module';
 
 let cachedHandler: Handler;
@@ -11,6 +12,8 @@ async function bootstrap(): Promise<Handler> {
   if (cachedHandler) {
     return cachedHandler;
   }
+
+  await resolveSecretsToEnv();
 
   const expressApp = express();
   const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp));

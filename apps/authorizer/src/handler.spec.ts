@@ -1,13 +1,22 @@
-import type { APIGatewayTokenAuthorizerEvent } from 'aws-lambda';
+import type { APIGatewayRequestAuthorizerEvent } from 'aws-lambda';
 import { getAuthHandlerRuntimeConfig, issueAccessToken, issueIdToken } from '@forge-core/core/auth/platform-tokens';
 import { handler } from './handler';
 
 const runtime = getAuthHandlerRuntimeConfig();
 
-const mockEvent = (token: string): APIGatewayTokenAuthorizerEvent => ({
-  type: 'TOKEN',
-  authorizationToken: token ? `Bearer ${token}` : '',
-  methodArn: 'arn:aws:execute-api:us-east-1:123456789:abc123/prod/GET/api/auth/me',
+const mockEvent = (token: string, path = '/api/auth/me', method = 'GET'): APIGatewayRequestAuthorizerEvent => ({
+  type: 'REQUEST',
+  methodArn: `arn:aws:execute-api:us-east-1:123456789:abc123/prod/${method}${path}`,
+  resource: path,
+  path,
+  httpMethod: method,
+  headers: token ? { Authorization: `Bearer ${token}` } : {},
+  multiValueHeaders: {},
+  pathParameters: null,
+  queryStringParameters: null,
+  multiValueQueryStringParameters: null,
+  stageVariables: null,
+  requestContext: {} as APIGatewayRequestAuthorizerEvent['requestContext'],
 });
 
 const buildUserToken = (
@@ -45,6 +54,13 @@ afterEach(() => {
 });
 
 describe('Lambda Authorizer handler', () => {
+  it('returns Allow policy with anonymous principal for public paths (no token required)', async () => {
+    const result = await handler(mockEvent('', '/api/health', 'GET'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
   it('returns Allow policy with normalized user context for a valid platform access token', async () => {
     const token = buildUserToken();
 

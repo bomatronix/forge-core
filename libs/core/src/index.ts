@@ -1,5 +1,8 @@
 // Core module
 export { CoreModule } from './core.module';
+
+// Lambda utilities
+export { resolveSecretsToEnv } from './lambda/resolve-secrets';
 export type { CoreModuleOptions } from './core.module';
 export { CORE_MODULE_OPTIONS } from './core.constants';
 
