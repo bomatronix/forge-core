@@ -316,6 +316,19 @@ export class AuthHandlerController {
     return this.providerService.getUserInfo(authorization);
   }
 
+  @Get('logout')
+  @Public()
+  @ApiOperation({ summary: 'Clear auth-handler session and redirect (GET/browser redirect version)' })
+  @ApiQuery({ name: 'return_to', required: false })
+  logout_get(
+    @Req() request: Request,
+    @Res() response: Response,
+    @Query('return_to') returnTo: string | undefined,
+  ): void {
+    const result = this.providerService.logout(request, returnTo);
+    this.redirectWithCookies(response, result);
+  }
+
   @Post('logout')
   @Public()
   @ApiOperation({ summary: 'Clear the auth-handler browser session' })
