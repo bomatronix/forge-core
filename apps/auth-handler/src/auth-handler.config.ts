@@ -37,6 +37,17 @@ const DEFAULT_CLIENTS: AuthClientConfig[] = [
     defaultConnectionId: 'clerk',
   },
   {
+    clientId: 'agent-forge-web',
+    name: 'Agent Forge Web',
+    type: 'public',
+    firstParty: true,
+    redirectUris: ['https://v0-agent-forge-ijs0b9e12-bomatra-1332s-projects.vercel.app/callback'],
+    scopes: ['openid', 'profile', 'email', 'offline_access', 'agents:read', 'agents:write'],
+    grantTypes: ['authorization_code', 'refresh_token'],
+    responseTypes: ['code'],
+    defaultConnectionId: 'clerk',
+  },
+  {
     clientId: 'forge-machine-client',
     clientSecret: 'forge-machine-secret',
     name: 'Forge Machine Client',
