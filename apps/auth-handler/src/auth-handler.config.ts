@@ -26,6 +26,17 @@ const DEFAULT_CLIENTS: AuthClientConfig[] = [
     defaultConnectionId: 'local',
   },
   {
+    clientId: 'agent-forge-web',
+    name: 'Agent Forge Web',
+    type: 'public',
+    firstParty: true,
+    redirectUris: ['http://localhost:3000/callback'],
+    scopes: ['openid', 'profile', 'email', 'offline_access', 'agents:read', 'agents:write'],
+    grantTypes: ['authorization_code', 'refresh_token'],
+    responseTypes: ['code'],
+    defaultConnectionId: 'clerk',
+  },
+  {
     clientId: 'forge-machine-client',
     clientSecret: 'forge-machine-secret',
     name: 'Forge Machine Client',
@@ -77,6 +88,22 @@ const LOCAL_CONNECTION: UpstreamConnectionConfig = {
   type: 'dev',
 };
 
+function buildClerkConnection(): UpstreamConnectionConfig | null {
+  const discoveryUrl = process.env.AUTH_HANDLER_CLERK_DISCOVERY_URL?.trim();
+  const clientId = process.env.AUTH_HANDLER_CLERK_CLIENT_ID?.trim();
+  if (!discoveryUrl || !clientId) return null;
+
+  return {
+    id: process.env.AUTH_HANDLER_CLERK_CONNECTION_ID?.trim() || 'clerk',
+    name: process.env.AUTH_HANDLER_CLERK_CONNECTION_NAME?.trim() || 'Clerk',
+    type: 'oidc',
+    discoveryUrl,
+    clientId,
+    clientSecret: process.env.AUTH_HANDLER_CLERK_CLIENT_SECRET?.trim(),
+    scopes: process.env.AUTH_HANDLER_CLERK_SCOPES?.trim().split(/\s+/) ?? ['openid', 'profile', 'email'],
+  };
+}
+
 function mergeConnections(
   defaultConnections: UpstreamConnectionConfig[],
   configuredConnections: UpstreamConnectionConfig[],
@@ -112,7 +139,10 @@ export class AuthHandlerConfigService {
       process.env.AUTH_HANDLER_CONNECTIONS_JSON,
       [],
     );
-    this.connections = mergeConnections([LOCAL_CONNECTION], configuredConnections);
+    const defaultConnections: UpstreamConnectionConfig[] = [LOCAL_CONNECTION];
+    const clerkConnection = buildClerkConnection();
+    if (clerkConnection) defaultConnections.push(clerkConnection);
+    this.connections = mergeConnections(defaultConnections, configuredConnections);
   }
 
   getRuntimeConfig(): AuthHandlerRuntimeConfig {

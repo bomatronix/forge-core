@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { createClerkClient } from '@clerk/backend';
 import { randomUUID, timingSafeEqual, createHash } from 'crypto';
 import type { Request } from 'express';
 import {
@@ -294,6 +295,139 @@ export class OidcProviderService {
     return {
       redirectUrl: returnTo?.trim() || this.getIssuer(request),
       cookies,
+    };
+  }
+
+  /**
+   * Credential-based login endpoint — verifies email/password directly instead of redirecting to
+   * an upstream OIDC provider. Returns a JSON response with a redirectUrl containing the
+   * authorization code, allowing the frontend to drive the PKCE callback flow without a browser
+   * redirect to auth-handler.
+   *
+   * Supported connection types:
+   * - dev: auto-authenticates with mock credentials (no password check)
+   * - oidc (Clerk): verifies via Clerk Backend API (requires AUTH_SECRET_KEY)
+   */
+  async loginWithCredentials(
+    request: Request,
+    params: Record<string, string | undefined>,
+  ): Promise<{ redirectUrl: string }> {
+    const email = params.email?.trim();
+    const password = params.password?.trim();
+
+    if (!email || !password) {
+      throw new BadRequestException('email and password are required.');
+    }
+
+    const client = this.requireClient(params.client_id);
+    this.ensureGrant(client, 'authorization_code');
+
+    const redirectUri = this.requireRedirectUri(client, params.redirect_uri);
+    const requestedScopes = this.resolveRequestedScope(client, params.scope);
+    const connection = this.resolveConnection(params.connection, client);
+
+    const pending: PendingAuthorizationRequest = {
+      requestId: randomUUID(),
+      clientId: client.clientId,
+      redirectUri,
+      responseType: 'code',
+      scope: requestedScopes,
+      state: params.state,
+      nonce: params.nonce,
+      codeChallenge: params.code_challenge,
+      codeChallengeMethod: this.normalizeCodeChallengeMethod(params.code_challenge_method),
+      connectionId: connection.id,
+      createdAt: new Date().toISOString(),
+    };
+
+    let browserSession: BrowserSession;
+
+    if (connection.type === 'dev') {
+      browserSession = {
+        sub: 'dev-user-id',
+        email: 'dev@example.com',
+        name: 'Dev User',
+        avatarUrl: null,
+        orgId: 'dev-org-id',
+        permissions: ['*'],
+        provider: connection.id,
+        createdAt: new Date().toISOString(),
+      };
+    } else {
+      browserSession = await this.verifyCredentialsViaClerk(email, password, connection);
+    }
+
+    // Issue authorization code directly — bypasses cookie-based flow since all
+    // PKCE params arrive in the request body, not via a browser-set flow cookie.
+    const code = randomUUID();
+    const authorizationCode: AuthorizationCodeRecord = {
+      code,
+      clientId: pending.clientId,
+      redirectUri: pending.redirectUri,
+      scope: pending.scope,
+      nonce: pending.nonce,
+      subject: browserSession.sub,
+      email: browserSession.email,
+      name: browserSession.name,
+      avatarUrl: browserSession.avatarUrl,
+      orgId: browserSession.orgId,
+      permissions: this.resolvePermissions(pending.scope, browserSession.permissions),
+      codeChallenge: pending.codeChallenge,
+      codeChallengeMethod: pending.codeChallengeMethod,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    };
+    this.store.saveAuthorizationCode(authorizationCode);
+
+    const redirectUrl = new URL(pending.redirectUri);
+    redirectUrl.searchParams.set('code', code);
+    if (pending.state) {
+      redirectUrl.searchParams.set('state', pending.state);
+    }
+
+    return { redirectUrl: redirectUrl.toString() };
+  }
+
+  private async verifyCredentialsViaClerk(
+    email: string,
+    password: string,
+    connection: UpstreamConnectionConfig,
+  ): Promise<BrowserSession> {
+    if (connection.type !== 'oidc') {
+      throw new BadRequestException(`Credential login is not supported for connection type '${connection.type}'.`);
+    }
+
+    const secretKey = process.env.AUTH_SECRET_KEY?.trim();
+    if (!secretKey) {
+      throw new BadRequestException('Server auth key is not configured. Cannot verify credentials.');
+    }
+
+    const clerk = createClerkClient({ secretKey });
+
+    const userList = await clerk.users.getUserList({ emailAddress: [email] });
+    const user = userList.data?.[0];
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials.');
+    }
+
+    try {
+      await clerk.users.verifyPassword({ userId: user.id, password });
+    } catch {
+      throw new UnauthorizedException('Invalid credentials.');
+    }
+
+    const primaryEmail = user.emailAddresses.find(e => e.id === user.primaryEmailAddressId)?.emailAddress ?? email;
+    const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || null;
+
+    return {
+      sub: user.id,
+      email: primaryEmail,
+      name,
+      avatarUrl: user.imageUrl ?? null,
+      orgId: null,
+      permissions: [],
+      provider: connection.id,
+      createdAt: new Date().toISOString(),
     };
   }
 
