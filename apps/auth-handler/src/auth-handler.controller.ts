@@ -242,6 +242,38 @@ export class AuthHandlerController {
     this.redirectWithCookies(response, result);
   }
 
+  @Post('login')
+  @Public()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Credential-based login — verifies email/password and issues an authorization code' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        password: { type: 'string' },
+        client_id: { type: 'string' },
+        redirect_uri: { type: 'string' },
+        state: { type: 'string' },
+        code_challenge: { type: 'string' },
+        code_challenge_method: { type: 'string', example: 'S256' },
+        scope: { type: 'string' },
+        connection: { type: 'string', example: 'clerk' },
+      },
+      required: ['email', 'password', 'client_id', 'redirect_uri'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    schema: { type: 'object', properties: { redirectUrl: { type: 'string' } } },
+  })
+  async login(
+    @Req() request: Request,
+    @Body() rawBody: Record<string, unknown>,
+  ): Promise<{ redirectUrl: string }> {
+    return this.providerService.loginWithCredentials(request, this.normalizeParams(rawBody));
+  }
+
   @Post('token')
   @Public()
   @HttpCode(200)
@@ -282,6 +314,19 @@ export class AuthHandlerController {
   @ApiResponse({ status: 200, type: UserInfoResponseDto })
   userinfo(@Headers('authorization') authorization: string | undefined) {
     return this.providerService.getUserInfo(authorization);
+  }
+
+  @Get('logout')
+  @Public()
+  @ApiOperation({ summary: 'Clear auth-handler session and redirect (GET/browser redirect version)' })
+  @ApiQuery({ name: 'return_to', required: false })
+  logout_get(
+    @Req() request: Request,
+    @Res() response: Response,
+    @Query('return_to') returnTo: string | undefined,
+  ): void {
+    const result = this.providerService.logout(request, returnTo);
+    this.redirectWithCookies(response, result);
   }
 
   @Post('logout')
