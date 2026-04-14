@@ -30,18 +30,10 @@ const DEFAULT_CLIENTS: AuthClientConfig[] = [
     name: 'Agent Forge Web',
     type: 'public',
     firstParty: true,
-    redirectUris: ['http://localhost:3000/callback'],
-    scopes: ['openid', 'profile', 'email', 'offline_access', 'agents:read', 'agents:write'],
-    grantTypes: ['authorization_code', 'refresh_token'],
-    responseTypes: ['code'],
-    defaultConnectionId: 'clerk',
-  },
-  {
-    clientId: 'agent-forge-web',
-    name: 'Agent Forge Web',
-    type: 'public',
-    firstParty: true,
-    redirectUris: ['https://v0-agent-forge-ijs0b9e12-bomatra-1332s-projects.vercel.app/callback'],
+    redirectUris: [
+      'http://localhost:3000/callback',
+      'https://v0-agent-forge-ijs0b9e12-bomatra-1332s-projects.vercel.app/callback',
+    ],
     scopes: ['openid', 'profile', 'email', 'offline_access', 'agents:read', 'agents:write'],
     grantTypes: ['authorization_code', 'refresh_token'],
     responseTypes: ['code'],
@@ -79,6 +71,21 @@ function parseJsonEnv<T>(raw: string | undefined, fallback: T): T {
   return JSON.parse(raw) as T;
 }
 
+function parseExtraRedirectUris(): Map<string, string[]> {
+  // AUTH_HANDLER_EXTRA_REDIRECT_URIS format:
+  // JSON array of { clientId, redirectUri } pairs, e.g.:
+  // [{"clientId":"agent-forge-web","redirectUri":"https://myapp.vercel.app/callback"}]
+  const raw = process.env.AUTH_HANDLER_EXTRA_REDIRECT_URIS?.trim();
+  if (!raw) return new Map();
+  const extras = JSON.parse(raw) as Array<{ clientId: string; redirectUri: string }>;
+  const map = new Map<string, string[]>();
+  for (const { clientId, redirectUri } of extras) {
+    const existing = map.get(clientId) ?? [];
+    map.set(clientId, [...existing, redirectUri]);
+  }
+  return map;
+}
+
 function mergeClients(defaultClients: AuthClientConfig[], configuredClients: AuthClientConfig[]): AuthClientConfig[] {
   const merged = new Map<string, AuthClientConfig>();
 
@@ -88,6 +95,17 @@ function mergeClients(defaultClients: AuthClientConfig[], configuredClients: Aut
 
   for (const client of configuredClients) {
     merged.set(client.clientId, client);
+  }
+
+  const extraRedirectUris = parseExtraRedirectUris();
+  for (const [clientId, uris] of extraRedirectUris) {
+    const client = merged.get(clientId);
+    if (client) {
+      merged.set(clientId, {
+        ...client,
+        redirectUris: [...new Set([...client.redirectUris, ...uris])],
+      });
+    }
   }
 
   return Array.from(merged.values());
