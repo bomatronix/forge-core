@@ -397,7 +397,7 @@ export class OidcProviderService {
       throw new BadRequestException(`Credential login is not supported for connection type '${connection.type}'.`);
     }
 
-    const secretKey = process.env.AUTH_SECRET_KEY?.trim();
+    const secretKey = (connection.secretKey ?? process.env.AUTH_SECRET_KEY)?.trim();
     if (!secretKey) {
       throw new BadRequestException('Server auth key is not configured. Cannot verify credentials.');
     }

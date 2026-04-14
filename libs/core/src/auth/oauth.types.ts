@@ -31,6 +31,8 @@ export interface UpstreamConnectionConfig {
   issuer?: string;
   clientId?: string;
   clientSecret?: string;
+  /** Provider backend API secret key (e.g. Clerk sk_live_/sk_test_). Stored in AUTH_HANDLER_CONNECTIONS_JSON. */
+  secretKey?: string;
   scopes?: string[];
 }
 
