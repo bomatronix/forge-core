@@ -450,7 +450,7 @@ export class AuthHandlerController {
 
       const verifier = resolveAuthAdapter(
         'clerk',
-        process.env.AUTH_SECRET_KEY,
+        this.configService.getConnection('clerk')?.secretKey ?? process.env.AUTH_SECRET_KEY,
         process.env.AUTH_PUBLISHABLE_KEY,
       );
       const session = await verifier.verifyToken(token);
@@ -539,7 +539,7 @@ export class AuthHandlerController {
   }
 
   private async verifyClerkOauthAccessToken(token: string): Promise<AuthSession | null> {
-    const secretKey = process.env.AUTH_SECRET_KEY?.trim();
+    const secretKey = (this.configService.getConnection('clerk')?.secretKey ?? process.env.AUTH_SECRET_KEY)?.trim();
     const discoveryUrl = process.env.AUTH_HANDLER_CLERK_DISCOVERY_URL?.trim();
 
     if (!secretKey || !discoveryUrl) {
