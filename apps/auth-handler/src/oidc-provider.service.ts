@@ -544,6 +544,22 @@ export class OidcProviderService {
     return response;
   }
 
+  // TODO [P1 — LOGGING] Add NestJS Logger to this class and instrument every
+  // decision point in exchangeRefreshToken so failures are visible in CloudWatch:
+  //   - client authenticated (clientId)
+  //   - refresh token looked up (found / not-found / revoked)
+  //   - token client-id mismatch
+  //   - old token revoked, new token saved
+  //   - new access token issued (sub, exp)
+  // Pattern: private readonly logger = new Logger(OidcProviderService.name)
+  //
+  // TODO [P1 — IN-MEMORY STORE] AuthPersistenceStore uses a plain Map — data is
+  // wiped on every Lambda cold start. Refresh tokens issued during one warm
+  // invocation are gone when the container is recycled, causing invalid_grant
+  // and forcing users to re-login. Fix options (in priority order):
+  //   1. DynamoDB-backed store (preferred — persistent, TTL-managed)
+  //   2. Signed JWT refresh tokens (stateless, no store lookup needed)
+  //   3. Lambda provisioned concurrency (avoids cold starts; cost trade-off)
   private exchangeRefreshToken(
     body: Record<string, string | undefined>,
     authorizationHeader: string | undefined,
