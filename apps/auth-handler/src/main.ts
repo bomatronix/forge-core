@@ -6,6 +6,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const authIssuer = process.env.AUTH_HANDLER_ISSUER?.trim() || 'http://localhost:3002/auth';
 
+  // TODO [P1 — CORS] Replace static allowlist with origin-echo pattern used by
+  // all other Lambdas in this stack. Static list breaks on cold starts when
+  // CORS_ORIGIN isn't set and on rotating Vercel preview URLs.
+  // Fix: origin: (origin, callback) => callback(null, origin ?? '*')
+  // Centralise into a shared NestJS CORS factory in libs/core so api/ and
+  // auth-handler/ stay in sync (both Lambdas need the same rule).
   app.enableCors({
     origin: [
       process.env.CORS_ORIGIN ?? 'http://localhost:3000',
