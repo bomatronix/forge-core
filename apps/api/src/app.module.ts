@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { CoreModule } from '@forge-core/core';
+import { CoreModule, DrizzleModule } from '@forge-core/core';
 import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
 
@@ -15,6 +15,7 @@ import { HealthController } from './health/health.controller';
       authPublishableKey: process.env.AUTH_PUBLISHABLE_KEY,
       allowedOrgIds: process.env.ALLOWED_ORG_IDS?.split(',').filter(Boolean),
     }),
+    DrizzleModule.forRootAsync(),
   ],
   controllers: [AuthController, HealthController],
 })

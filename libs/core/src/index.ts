@@ -66,3 +66,8 @@ export { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 // Pipes
 export { createValidationPipe } from './pipes/validation.pipe';
+
+// Database
+export { DrizzleModule, DRIZZLE_CLIENT } from './db/drizzle.module';
+export type { DbClient } from './db/client';
+export * as schema from './db/schema';
