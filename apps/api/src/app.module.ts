@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CoreModule, DrizzleModule } from '@forge-core/core';
 import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
+import { AgentsModule } from './agents/agents.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { HealthController } from './health/health.controller';
       allowedOrgIds: process.env.ALLOWED_ORG_IDS?.split(',').filter(Boolean),
     }),
     DrizzleModule.forRootAsync(),
+    AgentsModule,
   ],
   controllers: [AuthController, HealthController],
 })

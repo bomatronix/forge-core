@@ -6,6 +6,10 @@ import { AuthPersistenceStore } from './auth-store';
 import { OidcProviderService } from './oidc-provider.service';
 import { UpstreamOidcService } from './upstream-oidc.service';
 
+jest.mock('@clerk/backend', () => ({
+  createClerkClient: jest.fn(),
+}));
+
 function createRequest(cookie?: string): Request {
   return {
     headers: cookie ? { cookie } : {},
@@ -137,6 +141,86 @@ describe('OidcProviderService', () => {
     expect(redirect.origin + redirect.pathname).toBe('http://localhost:4000/callback');
     expect(redirect.searchParams.get('code')).toBeTruthy();
     expect(redirect.searchParams.get('state')).toBe('third-party-state');
+  });
+
+  it('loginWithCredentials via Clerk populates orgId from org membership into the platform token', async () => {
+    const { createClerkClient } = await import('@clerk/backend');
+    const mockClerk = {
+      users: {
+        getUserList: jest.fn().mockResolvedValue({
+          data: [{
+            id: 'user_clerk123',
+            primaryEmailAddressId: 'email_1',
+            emailAddresses: [{ id: 'email_1', emailAddress: 'alice@example.com' }],
+            firstName: 'Alice',
+            lastName: 'Smith',
+            imageUrl: null,
+          }],
+        }),
+        verifyPassword: jest.fn().mockResolvedValue({}),
+        getOrganizationMembershipList: jest.fn().mockResolvedValue({
+          data: [{
+            organization: { id: 'org_mindrithm123' },
+            permissions: ['org:agents:read', 'org:agents:write'],
+          }],
+        }),
+      },
+    };
+    (createClerkClient as jest.Mock).mockReturnValue(mockClerk);
+
+    // Set Clerk connection before instantiating so AuthHandlerConfigService picks it up
+    process.env.AUTH_HANDLER_CONNECTIONS_JSON = JSON.stringify([{
+      id: 'clerk',
+      name: 'Clerk',
+      type: 'oidc',
+      discoveryUrl: 'https://clerk.example.com/.well-known/openid-configuration',
+      clientId: 'clerk-client-id',
+      secretKey: 'sk_test_fake',
+    }]);
+
+    // Instantiate directly to preserve the env var (createService() deletes it)
+    const service = new OidcProviderService(
+      new AuthHandlerConfigService(),
+      new AuthPersistenceStore(),
+      new UpstreamOidcService(),
+    );
+
+    const loginResult = await service.loginWithCredentials(
+      createRequest(),
+      {
+        client_id: 'agent-forge-web',
+        redirect_uri: 'https://mindrithm.app/callback',
+        email: 'alice@example.com',
+        password: 'correct-password',
+        connection: 'clerk',
+        scope: 'openid profile email agents:read agents:write',
+        code_challenge: 'challenge-clerk',
+        code_challenge_method: 'plain',
+      },
+    );
+
+    const redirect = new URL(loginResult.redirectUrl);
+    const code = redirect.searchParams.get('code');
+    expect(code).toBeTruthy();
+    expect(mockClerk.users.getOrganizationMembershipList).toHaveBeenCalledWith({ userId: 'user_clerk123' });
+
+    const tokenResponse = await service.exchangeToken(
+      createRequest(),
+      {
+        grant_type: 'authorization_code',
+        client_id: 'agent-forge-web',
+        code: code ?? undefined,
+        redirect_uri: 'https://mindrithm.app/callback',
+        code_verifier: 'challenge-clerk',
+      },
+      undefined,
+    ) as Record<string, string>;
+
+    expect(tokenResponse.access_token).toBeTruthy();
+
+    const userInfo = service.getUserInfo(`Bearer ${tokenResponse.access_token}`) as UserInfoResponse;
+    expect(userInfo.sub).toBe('user_clerk123');
+    expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('org_mindrithm123');
   });
 
   it('issues machine tokens via client_credentials and blocks them from userinfo', async () => {

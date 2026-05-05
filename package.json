@@ -12,8 +12,9 @@
     "build": "nest build api",
     "build:app": "nest build $APP && node esbuild.config.mjs $APP",
     "build:lambda": "APP=api pnpm build:app",
+    "build:auth-handler": "APP=auth-handler pnpm build:app",
     "build:authorizer": "APP=authorizer pnpm build:app",
-    "build:all": "APP=api pnpm build:app && APP=authorizer pnpm build:app",
+    "build:all": "APP=api pnpm build:app && APP=auth-handler pnpm build:app && APP=authorizer pnpm build:app",
     "analyze": "nest build $APP && node esbuild.config.mjs $APP --analyze",
     "build:client": "nest build $CLIENT && node esbuild.config.mjs $CLIENT",
     "start": "node dist/apps/api/src/main.js",
@@ -24,7 +25,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:up": "docker run -d --name forge-postgres -e POSTGRES_DB=forge_agents -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgres:16-alpine || docker start forge-postgres",
+    "db:down": "docker stop forge-postgres",
+    "db:logs": "docker logs -f forge-postgres",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.1028.0",

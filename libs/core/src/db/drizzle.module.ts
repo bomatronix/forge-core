@@ -1,5 +1,5 @@
-import { Module, Global, DynamicModule, OnApplicationShutdown } from '@nestjs/common';
-import { createDbClient, DbClient } from './client';
+import { Module, Global, DynamicModule } from '@nestjs/common';
+import { createDbClient } from './client';
 
 export const DRIZZLE_CLIENT = Symbol('DRIZZLE_CLIENT');
 
