@@ -6,6 +6,8 @@ import { resolveAuthAdapter, resolveAuthIssuer } from './auth/auth-registry';
 import { AUTH_TOKEN_VERIFIER, AUTH_TOKEN_ISSUER } from './auth/auth.constants';
 import { AuthGuard } from './auth/guards/auth.guard';
 import { TenantGuard } from './auth/guards/tenant.guard';
+import { PermissionsGuard } from './auth/guards/permissions.guard';
+import { RequireTenantGuard } from './auth/guards/require-tenant.guard';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { createValidationPipe } from './pipes/validation.pipe';
@@ -72,6 +74,14 @@ export class CoreModule {
         {
           provide: APP_GUARD,
           useClass: TenantGuard,
+        },
+        {
+          provide: APP_GUARD,
+          useClass: PermissionsGuard,
+        },
+        {
+          provide: APP_GUARD,
+          useClass: RequireTenantGuard,
         },
         {
           provide: APP_INTERCEPTOR,

@@ -7,6 +7,13 @@
         "authorizer": ["authorizer"],
         "auth-handler": ["auth-handler"]
       },
+      "client_artifacts": {
+        "mindrithm": {
+          "api": ["forge-core-api"],
+          "authorizer": ["authorizer"],
+          "auth-handler": ["auth-handler"]
+        }
+      },
       "lambda_key_prefix": "api",
       "dev": {
         "tfe_workspace": "${CLIENT}-dev-api",

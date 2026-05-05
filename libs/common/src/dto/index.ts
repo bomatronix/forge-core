@@ -1,2 +1,2 @@
-// Future home of request/response DTOs with class-validator decorators
-export {};
+export { CreateAgentDto } from './create-agent.dto';
+export { UpdateAgentDto } from './update-agent.dto';

@@ -16,6 +16,8 @@ export { resolveAuthAdapter, resolveAuthIssuer } from './auth/auth-registry';
 // Auth — guards
 export { AuthGuard } from './auth/guards/auth.guard';
 export { TenantGuard } from './auth/guards/tenant.guard';
+export { PermissionsGuard } from './auth/guards/permissions.guard';
+export { RequireTenantGuard } from './auth/guards/require-tenant.guard';
 
 // Auth — adapters are intentionally NOT exported from the public barrel.
 // Application code must use resolveAuthAdapter() / resolveAuthIssuer() or inject
@@ -55,6 +57,7 @@ export type {
 export { CurrentUser } from './auth/decorators/current-user.decorator';
 export { CurrentTenant } from './auth/decorators/current-tenant.decorator';
 export { Public, IS_PUBLIC_KEY } from './auth/decorators/public.decorator';
+export { RequirePermissions, PERMISSIONS_KEY } from './auth/decorators/require-permissions.decorator';
 
 // Interceptors
 export { LoggingInterceptor } from './interceptors/logging.interceptor';
@@ -66,3 +69,8 @@ export { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 // Pipes
 export { createValidationPipe } from './pipes/validation.pipe';
+
+// Database
+export { DrizzleModule, DRIZZLE_CLIENT } from './db/drizzle.module';
+export type { DbClient } from './db/client';
+export * as schema from './db/schema';

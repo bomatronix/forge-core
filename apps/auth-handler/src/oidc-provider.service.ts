@@ -309,7 +309,7 @@ export class OidcProviderService {
    * - oidc (Clerk): verifies via Clerk Backend API (requires AUTH_SECRET_KEY)
    */
   async loginWithCredentials(
-    request: Request,
+    _request: Request,
     params: Record<string, string | undefined>,
   ): Promise<{ redirectUrl: string }> {
     const email = params.email?.trim();
@@ -419,13 +419,18 @@ export class OidcProviderService {
     const primaryEmail = user.emailAddresses.find(e => e.id === user.primaryEmailAddressId)?.emailAddress ?? email;
     const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || null;
 
+    const memberships = await clerk.users.getOrganizationMembershipList({ userId: user.id });
+    const firstMembership = memberships.data?.[0];
+    const orgId = firstMembership?.organization.id ?? null;
+    const permissions = firstMembership?.permissions ?? [];
+
     return {
       sub: user.id,
       email: primaryEmail,
       name,
       avatarUrl: user.imageUrl ?? null,
-      orgId: null,
-      permissions: [],
+      orgId,
+      permissions,
       provider: connection.id,
       createdAt: new Date().toISOString(),
     };

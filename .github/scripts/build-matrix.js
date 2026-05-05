@@ -33,7 +33,11 @@ function resolveTemplate(value, context) {
 }
 
 function resolveArtifacts(wsName, ws) {
-  const artifactMap = ws.artifacts ?? Object.fromEntries(ws.apps.map((app) => [app, [app]]))
+  const client = (process.env.CLIENT ?? '').trim()
+  const artifactMap =
+    (client && ws.client_artifacts?.[client]) ??
+    ws.artifacts ??
+    Object.fromEntries(ws.apps.map((app) => [app, [app]]))
   const bundleApps = new Set(ws.apps)
   const artifactTargets = []
   const lambdaFunctions = []
