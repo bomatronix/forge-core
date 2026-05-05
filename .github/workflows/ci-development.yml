@@ -41,14 +41,13 @@ jobs:
         id: set-matrix
         env:
           DEPLOY_ENV: dev
-          CLIENT: ${{ vars.CLIENT }}
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
         run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
 
   # ── Deploy to dev ─────────────────────────────────────────────────────────────
   deploy:
-    name: Deploy to Dev (${{ matrix.workspace }})
+    name: Deploy to Dev (${{ matrix.client }})
     runs-on: ubuntu-latest
     needs: [detect-changes]
     if: github.event_name == 'push' && (needs.detect-changes.outputs.matrix || '[]') != '[]'
@@ -77,12 +76,13 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          aws-region: us-east-1
+          role-to-assume: ${{ matrix.role_to_assume }}
+          aws-region: ${{ matrix.region }}
       - name: Upload Lambda zips to S3
         env:
-          S3_BUCKET: ${{ vars.S3_FORGE_CORE }}
-          S3_KMS_KEY_ID: ${{ vars.S3_KMS_KEY_ID }}
+          CLIENT: ${{ matrix.client }}
+          S3_BUCKET: ${{ matrix.s3_bucket }}
+          S3_KMS_KEY_ID: ${{ matrix.kms_key_id }}
           LAMBDA_KEY_PREFIX: ${{ matrix.lambda_key_prefix }}
           UPLOAD_TARGETS: ${{ join(matrix.artifact_targets, ' ') }}
           DEPLOY_ENV_LABEL: development
