@@ -32,6 +32,11 @@ jobs:
               - 'libs/**'
             apps:
               - 'apps/**'
+            deploy_config:
+              - '.github/clients.json'
+              - '.github/deploy.json'
+              - '.github/scripts/**'
+              - '.github/workflows/**'
 
       - uses: actions/setup-node@v4
         with:
@@ -41,8 +46,9 @@ jobs:
         id: set-matrix
         env:
           DEPLOY_ENV: dev
-          CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
+          CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }} ${{ steps.filter.outputs.deploy_config_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
+          DEPLOY_CONFIG_CHANGED: "${{ steps.filter.outputs.deploy_config }}"
         run: |
           matrix="$(node .github/scripts/build-matrix.js)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
@@ -93,3 +99,5 @@ jobs:
         env:
           TFE_TOKEN: ${{ secrets.TFE_TOKEN }}
         run: node .github/scripts/deploy-tfe.js ${{ matrix.tfe_workspace }} ${GITHUB_SHA::7} "${{ join(matrix.lambda_functions, ',') }}" "${{ matrix.lambda_key_prefix }}"
+      - name: Verify deployed lambdas
+        run: node .github/scripts/verify-deployment.js dev ${{ matrix.client }}

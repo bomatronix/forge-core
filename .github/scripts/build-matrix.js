@@ -7,6 +7,7 @@
  *   DEPLOY_ENV     — target environment: dev | qa | staging | prod
  *   CHANGED_FILES  — space-separated list of changed file paths
  *   LIBS_CHANGED   — 'true' if any libs/** file changed, else 'false'
+ *   DEPLOY_CONFIG_CHANGED — 'true' if deploy config/script/workflow files changed
  *
  * Each matrix entry:
  *   { client, workspace, role_to_assume, s3_bucket, kms_key_id, region, tfe_workspace,
@@ -30,6 +31,14 @@ if (!deployEnv) throw new Error('DEPLOY_ENV env var is required (dev|qa|staging|
 
 const changedFiles = (process.env.CHANGED_FILES ?? '').split(/\s+/).filter(Boolean)
 const libsChanged = process.env.LIBS_CHANGED === 'true'
+const deployConfigChanged =
+  process.env.DEPLOY_CONFIG_CHANGED === 'true' ||
+  changedFiles.some((file) => (
+    file === '.github/clients.json' ||
+    file === '.github/deploy.json' ||
+    file.startsWith('.github/scripts/') ||
+    file.startsWith('.github/workflows/')
+  ))
 
 function resolveArtifacts(wsName, ws, client) {
   const artifactMap =
@@ -64,13 +73,13 @@ function resolveArtifacts(wsName, ws, client) {
 
 /**
  * Determine which workspaces are affected by the current changeset.
- * - libs changed → all workspaces
+ * - libs or deployment wiring changed → all workspaces
  * - otherwise → workspaces whose apps/<name>/** files changed
  */
 function affectedWorkspaces() {
   const workspaces = deployJson.workspaces
 
-  if (libsChanged) {
+  if (libsChanged || deployConfigChanged) {
     return Object.keys(workspaces)
   }
 
