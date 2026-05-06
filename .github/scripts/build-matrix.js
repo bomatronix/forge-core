@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * build-matrix.js — Reads .github/deploy.json + paths-filter output,
+ * build-matrix.js — Reads .github/deploy.json + .github/clients.json + paths-filter output,
  * produces a GitHub Actions matrix JSON array for a given environment.
  *
  * Env vars (set by the workflow before calling this script):
  *   DEPLOY_ENV     — target environment: dev | qa | staging | prod
  *   CHANGED_FILES  — space-separated list of changed file paths
  *   LIBS_CHANGED   — 'true' if any libs/** file changed, else 'false'
- *   CLIENT         — optional client slug for naming downstream resources
  *
  * Each matrix entry:
- *   { workspace, apps, artifact_targets, lambda_functions, lambda_key_prefix, tfe_workspace }
+ *   { client, workspace, role_to_assume, s3_bucket, kms_key_id, region, tfe_workspace,
+ *     apps, artifact_targets, lambda_functions, lambda_key_prefix }
  */
 
 import { readFileSync } from 'fs'
@@ -21,6 +21,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const deployJson = JSON.parse(
   readFileSync(resolve(__dirname, '../deploy.json'), 'utf8'),
 )
+const clientsJson = JSON.parse(
+  readFileSync(resolve(__dirname, '../clients.json'), 'utf8'),
+)
 
 const deployEnv = process.env.DEPLOY_ENV
 if (!deployEnv) throw new Error('DEPLOY_ENV env var is required (dev|qa|staging|prod)')
@@ -28,12 +31,7 @@ if (!deployEnv) throw new Error('DEPLOY_ENV env var is required (dev|qa|staging|
 const changedFiles = (process.env.CHANGED_FILES ?? '').split(/\s+/).filter(Boolean)
 const libsChanged = process.env.LIBS_CHANGED === 'true'
 
-function resolveTemplate(value, context) {
-  return value.replace(/\$\{([^}]+)\}/g, (_, name) => context[name] ?? process.env[name] ?? '')
-}
-
-function resolveArtifacts(wsName, ws) {
-  const client = (process.env.CLIENT ?? '').trim()
+function resolveArtifacts(wsName, ws, client) {
   const artifactMap =
     (client && ws.client_artifacts?.[client]) ??
     ws.artifacts ??
@@ -61,10 +59,7 @@ function resolveArtifacts(wsName, ws) {
     }
   }
 
-  return {
-    artifactTargets,
-    lambdaFunctions,
-  }
+  return { artifactTargets, lambdaFunctions }
 }
 
 /**
@@ -93,31 +88,41 @@ function affectedWorkspaces() {
 
 const affected = affectedWorkspaces()
 
-const matrix = affected.map((wsName) => {
-  const ws = deployJson.workspaces[wsName]
-  const env = ws[deployEnv]
-  if (!env) throw new Error(`No '${deployEnv}' entry in deploy.json for workspace '${wsName}'`)
-  const { artifactTargets, lambdaFunctions } = resolveArtifacts(wsName, ws)
-  const client = (process.env.CLIENT ?? '').trim()
-  if (env.tfe_workspace.includes('${CLIENT}') && !client) {
-    throw new Error(
-      `CLIENT env var is required to resolve tfe_workspace for workspace '${wsName}'. ` +
-        `Set CLIENT as a repository-level GitHub Actions variable.`,
-    )
-  }
+const matrix = []
 
-  return {
-    workspace: wsName,
-    apps: ws.apps,
-    artifact_targets: artifactTargets,
-    lambda_functions: lambdaFunctions,
-    lambda_key_prefix: ws.lambda_key_prefix,
-    tfe_workspace: resolveTemplate(env.tfe_workspace, {
-      CLIENT: client || wsName,
-      DEPLOY_ENV: deployEnv,
-      WORKSPACE: wsName,
-    }),
+for (const [client, envMap] of Object.entries(clientsJson)) {
+  const clientEnv = envMap[deployEnv]
+  if (!clientEnv) continue // client not active in this env
+
+  for (const wsName of affected) {
+    const ws = deployJson.workspaces[wsName]
+    const { artifactTargets, lambdaFunctions } = resolveArtifacts(wsName, ws, client)
+
+    matrix.push({
+      client,
+      workspace: wsName,
+      role_to_assume: clientEnv.role_to_assume,
+      s3_bucket: clientEnv.s3_bucket,
+      kms_key_id: clientEnv.kms_key_id,
+      region: clientEnv.region,
+      tfe_workspace: clientEnv.tfe_workspace,
+      apps: ws.apps,
+      artifact_targets: artifactTargets,
+      lambda_functions: lambdaFunctions,
+      lambda_key_prefix: ws.lambda_key_prefix,
+    })
   }
-})
+}
+
+// Fail loudly if there were affected workspaces but no client is configured for this env.
+// An empty matrix here means the deploy job will silently skip — which is fine when nothing
+// changed, but dangerous when code changed and no clients are wired up yet.
+if (matrix.length === 0 && affected.length > 0) {
+  throw new Error(
+    `No clients configured for env '${deployEnv}' in .github/clients.json, ` +
+      `but ${affected.length} workspace(s) have changes: ${affected.join(', ')}. ` +
+      `Add a '${deployEnv}' entry per client to clients.json to enable deployment.`,
+  )
+}
 
 process.stdout.write(JSON.stringify(matrix))

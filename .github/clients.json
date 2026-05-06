@@ -1,0 +1,20 @@
+{
+  "test-client": {
+    "dev": {
+      "role_to_assume": "arn:aws:iam::889851937279:role/test-client-dev-role-artifact-publisher",
+      "s3_bucket": "test-client-dev-api-code",
+      "kms_key_id": "arn:aws:kms:us-east-1:889851937279:key/7a915c50-1807-469e-b15d-7b4d1e6a3ca7",
+      "region": "us-east-1",
+      "tfe_workspace": "test-client-dev-api"
+    }
+  },
+  "mindrithm": {
+    "dev": {
+      "role_to_assume": "arn:aws:iam::889851937279:role/mindrithm-dev-role-artifact-publisher",
+      "s3_bucket": "mindrithm-dev-forge-api-code",
+      "kms_key_id": "arn:aws:kms:us-east-1:889851937279:key/2890479f-ca9b-4150-a025-5e821899e29c",
+      "region": "us-east-1",
+      "tfe_workspace": "mindrithm-api-dev"
+    }
+  }
+}
