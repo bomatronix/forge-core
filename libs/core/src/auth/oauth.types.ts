@@ -59,6 +59,7 @@ export interface PendingAuthorizationRequest {
   codeChallengeMethod?: 'S256' | 'plain';
   connectionId: string;
   upstreamState?: string;
+  orgId: string | null;
   createdAt: string;
 }
 

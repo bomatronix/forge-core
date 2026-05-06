@@ -223,6 +223,112 @@ describe('OidcProviderService', () => {
     expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('org_mindrithm123');
   });
 
+  it('org_id from authorization request is embedded in the platform token', async () => {
+    const service = createService();
+
+    const authorizeResult = await service.beginAuthorization(createRequest(), {
+      client_id: 'forge-swagger-ui',
+      redirect_uri: 'http://localhost:3001/api/docs/oauth2-redirect.html',
+      response_type: 'code',
+      scope: 'openid profile email agents:read',
+      code_challenge: 'verifier-org',
+      code_challenge_method: 'plain',
+      org_id: 'org_test123',
+    });
+
+    const code = new URL(authorizeResult.redirectUrl).searchParams.get('code');
+    expect(code).toBeTruthy();
+
+    const tokenResponse = await service.exchangeToken(
+      createRequest(),
+      {
+        grant_type: 'authorization_code',
+        client_id: 'forge-swagger-ui',
+        code: code ?? undefined,
+        redirect_uri: 'http://localhost:3001/api/docs/oauth2-redirect.html',
+        code_verifier: 'verifier-org',
+      },
+      undefined,
+    ) as Record<string, string>;
+
+    const userInfo = service.getUserInfo(`Bearer ${tokenResponse.access_token}`) as UserInfoResponse;
+    expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('org_test123');
+  });
+
+  it('org_id from authorization request takes precedence over upstream profile orgId', async () => {
+    const mockUpstreamOidcService = {
+      buildAuthorizationUrl: jest.fn().mockImplementation((_conn: unknown, params: { state: string }) =>
+        Promise.resolve(`https://upstream.example.com/authorize?state=${params.state}`)
+      ),
+      exchangeCodeForProfile: jest.fn().mockResolvedValue({
+        sub: 'upstream-user-1',
+        email: 'user@example.com',
+        name: 'Test User',
+        avatarUrl: null,
+        orgId: 'upstream-org-from-provider',
+      }),
+    };
+
+    process.env.AUTH_HANDLER_CONNECTIONS_JSON = JSON.stringify([{
+      id: 'mock-oidc',
+      name: 'Mock OIDC',
+      type: 'oidc',
+      discoveryUrl: 'https://upstream.example.com/.well-known/openid-configuration',
+      clientId: 'mock-client',
+    }]);
+
+    const service = new OidcProviderService(
+      new AuthHandlerConfigService(),
+      new AuthPersistenceStore(),
+      mockUpstreamOidcService as unknown as UpstreamOidcService,
+    );
+
+    // Step 1: begin authorization with org_id from client
+    const req = createRequest();
+    const authorizeResult = await service.beginAuthorization(req, {
+      client_id: 'forge-swagger-ui',
+      redirect_uri: 'http://localhost:3001/api/docs/oauth2-redirect.html',
+      response_type: 'code',
+      scope: 'openid profile email agents:read',
+      code_challenge: 'verifier-precedence',
+      code_challenge_method: 'plain',
+      connection: 'mock-oidc',
+      org_id: 'client-supplied-org',
+    });
+
+    // Extract the upstream state from the redirect to Clerk
+    const upstreamRedirect = new URL(authorizeResult.redirectUrl);
+    const upstreamState = upstreamRedirect.searchParams.get('state') ?? 'x';
+
+    // Step 2: simulate upstream callback — upstream returns orgId: 'upstream-org-from-provider'
+    const cookieHeader = browserCookieHeader(authorizeResult.cookies);
+    const callbackResult = await service.handleCallback(
+      createRequest(cookieHeader),
+      'mock-oidc',
+      { code: 'upstream-code', state: upstreamState },
+    );
+
+    const code = new URL(callbackResult.redirectUrl).searchParams.get('code');
+    expect(code).toBeTruthy();
+
+    const callbackCookieHeader = browserCookieHeader(callbackResult.cookies);
+    const tokenResponse = await service.exchangeToken(
+      createRequest(callbackCookieHeader),
+      {
+        grant_type: 'authorization_code',
+        client_id: 'forge-swagger-ui',
+        code: code ?? undefined,
+        redirect_uri: 'http://localhost:3001/api/docs/oauth2-redirect.html',
+        code_verifier: 'verifier-precedence',
+      },
+      undefined,
+    ) as Record<string, string>;
+
+    const userInfo = service.getUserInfo(`Bearer ${tokenResponse.access_token}`) as UserInfoResponse;
+    // client-supplied org_id wins over upstream provider's orgId
+    expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('client-supplied-org');
+  });
+
   it('issues machine tokens via client_credentials and blocks them from userinfo', async () => {
     const service = createService();
 
