@@ -73,6 +73,29 @@ function formatDuration(ms) {
   return `${minutes}m ${seconds}s`
 }
 
+function markDeployedFunctionsAsExternal(currentValue, deployedFunctions) {
+  if (deployedFunctions.length === 0) {
+    return currentValue.lambdas
+  }
+
+  const lambdas = currentValue.lambdas ?? {}
+  const updatedLambdas = { ...lambdas }
+
+  for (const fn of deployedFunctions) {
+    if (!Object.prototype.hasOwnProperty.call(lambdas, fn)) {
+      console.warn(`[deploy-tfe] Function '${fn}' is not present in api_config_json.lambdas`)
+      continue
+    }
+
+    updatedLambdas[fn] = {
+      ...lambdas[fn],
+      upload_seed_code: false,
+    }
+  }
+
+  return updatedLambdas
+}
+
 async function tfe(method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -172,6 +195,7 @@ async function main() {
   }
 
   if (prefix) {
+    nextArtifacts.key_prefix = prefix
     nextArtifacts.prefix = prefix
   }
 
@@ -181,13 +205,14 @@ async function main() {
 
   const updated = {
     ...currentValue,
+    lambdas: markDeployedFunctionsAsExternal(currentValue, functions),
     artifacts: nextArtifacts,
   }
 
   console.log(
     `[deploy-tfe] Updating artifacts → ${JSON.stringify({
       version: nextArtifacts.version,
-      prefix: nextArtifacts.prefix,
+      key_prefix: nextArtifacts.key_prefix,
       functions: nextArtifacts.functions,
     })}`,
   )
