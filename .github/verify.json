@@ -28,18 +28,6 @@
     "dev": {
       "region": "us-east-1",
       "lambdas": {
-        "crud": {
-          "function_name": "test-client-dev-api-crud",
-          "runtime": "nodejs22.x",
-          "handler": "api.handler",
-          "min_code_kb": 200
-        },
-        "presign": {
-          "function_name": "test-client-dev-api-presign",
-          "runtime": "nodejs22.x",
-          "handler": "api.handler",
-          "min_code_kb": 200
-        },
         "authorizer": {
           "function_name": "test-client-dev-api-authorizer",
           "runtime": "nodejs22.x",
