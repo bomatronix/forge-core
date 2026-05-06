@@ -114,4 +114,15 @@ for (const [client, envMap] of Object.entries(clientsJson)) {
   }
 }
 
+// Fail loudly if there were affected workspaces but no client is configured for this env.
+// An empty matrix here means the deploy job will silently skip — which is fine when nothing
+// changed, but dangerous when code changed and no clients are wired up yet.
+if (matrix.length === 0 && affected.length > 0) {
+  throw new Error(
+    `No clients configured for env '${deployEnv}' in .github/clients.json, ` +
+      `but ${affected.length} workspace(s) have changes: ${affected.join(', ')}. ` +
+      `Add a '${deployEnv}' entry per client to clients.json to enable deployment.`,
+  )
+}
+
 process.stdout.write(JSON.stringify(matrix))
