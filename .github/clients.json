@@ -14,7 +14,7 @@
       "s3_bucket": "mindrithm-dev-forge-api-code",
       "kms_key_id": "arn:aws:kms:us-east-1:889851937279:key/2890479f-ca9b-4150-a025-5e821899e29c",
       "region": "us-east-1",
-      "tfe_workspace": "mindrithm-api-dev"
+      "tfe_workspace": "mindrithm-dev-api"
     }
   }
 }
