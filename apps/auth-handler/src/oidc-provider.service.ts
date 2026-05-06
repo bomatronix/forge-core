@@ -102,6 +102,7 @@ export class OidcProviderService {
       codeChallenge: params.code_challenge,
       codeChallengeMethod: this.normalizeCodeChallengeMethod(params.code_challenge_method),
       connectionId: connection.id,
+      orgId: params.org_id?.trim() || null,
       createdAt: new Date().toISOString(),
     };
 
@@ -116,7 +117,7 @@ export class OidcProviderService {
         email: 'dev@example.com',
         name: 'Dev User',
         avatarUrl: null,
-        orgId: 'dev-org-id',
+        orgId: pending.orgId ?? 'dev-org-id',
         permissions: ['*'],
         provider: connection.id,
         createdAt: new Date().toISOString(),
@@ -174,7 +175,7 @@ export class OidcProviderService {
       email: upstreamProfile.email,
       name: upstreamProfile.name,
       avatarUrl: upstreamProfile.avatarUrl,
-      orgId: upstreamProfile.orgId,
+      orgId: pending.orgId ?? upstreamProfile.orgId,
       permissions: [],
       provider: connectionId,
       createdAt: new Date().toISOString(),
@@ -337,6 +338,7 @@ export class OidcProviderService {
       codeChallenge: params.code_challenge,
       codeChallengeMethod: this.normalizeCodeChallengeMethod(params.code_challenge_method),
       connectionId: connection.id,
+      orgId: params.org_id?.trim() || null,
       createdAt: new Date().toISOString(),
     };
 
