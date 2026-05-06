@@ -30,7 +30,8 @@
     "db:down": "docker stop forge-postgres",
     "db:logs": "docker logs -f forge-postgres",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "verify:dev": "node .github/scripts/verify-deployment.js dev"
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.1028.0",

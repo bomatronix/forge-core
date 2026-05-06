@@ -1,0 +1,58 @@
+{
+  "mindrithm": {
+    "dev": {
+      "region": "us-east-1",
+      "lambdas": {
+        "forge-core-api": {
+          "function_name": "mindrithm-core-api-dev",
+          "runtime": "nodejs22.x",
+          "handler": "api.handler",
+          "min_code_kb": 200
+        },
+        "authorizer": {
+          "function_name": "mindrithm-api-authorizer-dev",
+          "runtime": "nodejs22.x",
+          "handler": "authorizer.handler",
+          "min_code_kb": 10
+        },
+        "auth-handler": {
+          "function_name": "mindrithm-auth-handler-dev",
+          "runtime": "nodejs22.x",
+          "handler": "auth-handler.handler",
+          "min_code_kb": 200
+        }
+      }
+    }
+  },
+  "test-client": {
+    "dev": {
+      "region": "us-east-1",
+      "lambdas": {
+        "crud": {
+          "function_name": "test-client-dev-api-crud",
+          "runtime": "nodejs22.x",
+          "handler": "api.handler",
+          "min_code_kb": 200
+        },
+        "presign": {
+          "function_name": "test-client-dev-api-presign",
+          "runtime": "nodejs22.x",
+          "handler": "api.handler",
+          "min_code_kb": 200
+        },
+        "authorizer": {
+          "function_name": "test-client-dev-api-authorizer",
+          "runtime": "nodejs22.x",
+          "handler": "authorizer.handler",
+          "min_code_kb": 10
+        },
+        "auth-handler": {
+          "function_name": "test-client-dev-auth-handler",
+          "runtime": "nodejs22.x",
+          "handler": "auth-handler.handler",
+          "min_code_kb": 200
+        }
+      }
+    }
+  }
+}
