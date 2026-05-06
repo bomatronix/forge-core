@@ -44,7 +44,9 @@ jobs:
           DEPLOY_ENV: qa
           CHANGED_FILES: "${{ steps.filter.outputs.libs_files }} ${{ steps.filter.outputs.apps_files }}"
           LIBS_CHANGED: "${{ steps.filter.outputs.libs }}"
-        run: echo "matrix=$(node .github/scripts/build-matrix.js)" >> $GITHUB_OUTPUT
+        run: |
+          matrix="$(node .github/scripts/build-matrix.js)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   # ── Deploy to QA ──────────────────────────────────────────────────────────────
   deploy:
