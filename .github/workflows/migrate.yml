@@ -23,11 +23,11 @@ on:
       action:
         description: Migration action
         required: true
-        default: migrate
+        default: bootstrap-and-migrate
         type: choice
         options:
-          - migrate
           - bootstrap-and-migrate
+          - migrate
 
 jobs:
   migrate:
@@ -52,20 +52,36 @@ jobs:
           const client = process.env.CLIENT
           const env = process.env.DEPLOY_ENV
           const config = JSON.parse(fs.readFileSync('.github/clients.json', 'utf8'))
-          const envConfig = config[client]?.[env]
-          if (!envConfig) {
-            throw new Error(`No config found for client '${client}' env '${env}'`)
+          const clientConfig = config[client]
+          if (!clientConfig) {
+            throw new Error(`No config found for client '${client}'`)
           }
-          if (!envConfig.migrator_function) {
-            throw new Error(`No migrator_function configured for client '${client}' env '${env}'. Add it to .github/clients.json.`)
+          const firstSet = (...values) => values.find((value) => typeof value === 'string' && value.trim() !== '')?.trim()
+          const envConfig = clientConfig[env] ?? {}
+          const accountId = firstSet(envConfig.account_id, clientConfig.account_id, process.env.AWS_ACCOUNT_ID)
+          const roleToAssume =
+            firstSet(envConfig.role_to_assume, process.env.AWS_ROLE_TO_ASSUME) ??
+            (accountId ? `arn:aws:iam::${accountId}:role/${client}-${env}-role-artifact-publisher` : '')
+          const region = firstSet(envConfig.region, process.env.AWS_REGION_FALLBACK) ?? 'us-east-1'
+          const migratorFunction =
+            firstSet(envConfig.migrator_function, process.env.MIGRATOR_FUNCTION_NAME) ??
+            `${client}-core-migrator-${env}`
+
+          if (!roleToAssume) {
+            throw new Error(`No role_to_assume configured for client '${client}' env '${env}'. Add .github/clients.json ${client}.${env}.role_to_assume or set AWS_ACCOUNT_ID/AWS_ROLE_TO_ASSUME.`)
           }
-          console.log(`role_to_assume=${envConfig.role_to_assume}`)
-          console.log(`region=${envConfig.region}`)
-          console.log(`migrator_function=${envConfig.migrator_function}`)
+
+          console.log(`role_to_assume=${roleToAssume}`)
+          console.log(`region=${region}`)
+          console.log(`migrator_function=${migratorFunction}`)
           NODE
         env:
           CLIENT: ${{ inputs.client }}
           DEPLOY_ENV: ${{ inputs.env }}
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID || '889851937279' }}
+          AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          AWS_REGION_FALLBACK: ${{ vars.AWS_REGION || 'us-east-1' }}
+          MIGRATOR_FUNCTION_NAME: ${{ vars.MIGRATOR_FUNCTION_NAME }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4

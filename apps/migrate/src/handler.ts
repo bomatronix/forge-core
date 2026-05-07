@@ -139,6 +139,7 @@ async function bootstrapRoles(): Promise<void> {
     await pool.query(`GRANT rds_iam TO ${app}`);
     await pool.query(`GRANT rds_iam TO ${migrator}`);
     await pool.query(`GRANT CONNECT ON DATABASE ${db} TO ${app}, ${migrator}`);
+    await pool.query(`GRANT CREATE ON DATABASE ${db} TO ${migrator}`);
     await pool.query(`GRANT USAGE ON SCHEMA public TO ${app}, ${migrator}`);
     await pool.query(`GRANT CREATE ON SCHEMA public TO ${migrator}`);
     await pool.query(
@@ -147,8 +148,9 @@ async function bootstrapRoles(): Promise<void> {
     await pool.query(`GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${app}`);
     await pool.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${migrator}`);
     await pool.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${migrator}`);
-    await pool.query('CREATE SCHEMA IF NOT EXISTS drizzle');
+    await pool.query(`CREATE SCHEMA IF NOT EXISTS drizzle AUTHORIZATION ${migrator}`);
     await pool.query(`ALTER SCHEMA drizzle OWNER TO ${migrator}`);
+    await pool.query(`GRANT USAGE, CREATE ON SCHEMA drizzle TO ${migrator}`);
     await pool.query(
       `ALTER DEFAULT PRIVILEGES FOR ROLE ${migrator} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${app}`,
     );
