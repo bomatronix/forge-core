@@ -1,9 +1,16 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { eq, and, isNull } from 'drizzle-orm';
 import { DRIZZLE_CLIENT, DbClient, schema } from '@forge-core/core';
-import type { Agent } from '@forge-core/common';
+import type { Agent, AgentStatus } from '@forge-core/common';
 import type { CreateAgentDto } from '@forge-core/common';
 import type { UpdateAgentDto } from '@forge-core/common';
+import type { UpdateStatusDto } from '@forge-core/common';
+
+const allowedStatusTransitions: Record<AgentStatus, AgentStatus[]> = {
+  draft: ['live'],
+  live: ['paused'],
+  paused: ['live'],
+};
 
 @Injectable()
 export class AgentsService {
@@ -19,7 +26,8 @@ export class AgentsService {
       id: row.id,
       name: row.name,
       status: row.status as Agent['status'],
-      channels: ((row.uiConfig as Record<string, unknown> | null)?.channels as Agent['channels']) ?? [],
+      channels:
+        ((row.uiConfig as Record<string, unknown> | null)?.channels as Agent['channels']) ?? [],
       conversations: 0,
       resolution: null,
       csat: null,
@@ -30,7 +38,13 @@ export class AgentsService {
     const [row] = await this.db
       .select()
       .from(schema.agents)
-      .where(and(eq(schema.agents.id, id), eq(schema.agents.orgId, orgId), isNull(schema.agents.deletedAt)));
+      .where(
+        and(
+          eq(schema.agents.id, id),
+          eq(schema.agents.orgId, orgId),
+          isNull(schema.agents.deletedAt),
+        ),
+      );
 
     if (!row) throw new NotFoundException(`Agent ${id} not found`);
     return row;
@@ -65,6 +79,40 @@ export class AgentsService {
       })
       .where(and(eq(schema.agents.id, id), eq(schema.agents.orgId, orgId)))
       .returning();
+
+    return row;
+  }
+
+  async updateStatus(orgId: string, id: string, dto: UpdateStatusDto) {
+    const agent = await this.findOne(orgId, id); // verify ownership
+    const currentStatus = agent.status as AgentStatus;
+
+    if (!allowedStatusTransitions[currentStatus]?.includes(dto.status)) {
+      throw new BadRequestException(
+        `Invalid agent status transition: ${currentStatus} -> ${dto.status}`,
+      );
+    }
+
+    const [row] = await this.db
+      .update(schema.agents)
+      .set({
+        status: dto.status,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.agents.id, id),
+          eq(schema.agents.orgId, orgId),
+          eq(schema.agents.status, currentStatus),
+        ),
+      )
+      .returning();
+
+    if (!row) {
+      throw new ConflictException(
+        `Agent ${id} status was modified concurrently — please retry`,
+      );
+    }
 
     return row;
   }

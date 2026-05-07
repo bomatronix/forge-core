@@ -68,6 +68,10 @@ for target in "${targets[@]}"; do
   rm -f "$zip_path"
   zip -j "$zip_path" "$artifact_path" >/dev/null
 
+  if [ -d "dist/lambda/${bundle}/drizzle" ]; then
+    (cd "dist/lambda/${bundle}" && zip -qr "$OLDPWD/${zip_path}" "drizzle")
+  fi
+
   put_args=(
     --bucket "$S3_BUCKET"
     --key "$object_key"

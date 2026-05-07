@@ -20,6 +20,12 @@
           "runtime": "nodejs22.x",
           "handler": "auth-handler.handler",
           "min_code_kb": 200
+        },
+        "forge-core-migrator": {
+          "function_name": "mindrithm-core-migrator-dev",
+          "runtime": "nodejs22.x",
+          "handler": "migrate.handler",
+          "min_code_kb": 100
         }
       }
     }

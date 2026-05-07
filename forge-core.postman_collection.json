@@ -1,0 +1,669 @@
+{
+  "info": {
+    "name": "Forge Core",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "All endpoints for Forge Core. Use the Local environment to smoke-test against local real Postgres via the local API, or the Mindrithm Dev (AWS) environment to smoke-test the deployed API.\n\nRecommended smoke path: run the Health folder, then Agent CRUD + Status Smoke."
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "API Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth Handler Discovery",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{authBaseUrl}}/auth/.well-known/openid-configuration"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('issuer', () => pm.expect(j.issuer).to.be.a('string').and.not.empty);",
+                  "pm.test('jwks_uri', () => pm.expect(j.jwks_uri).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth Handler JWKS",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{authBaseUrl}}/auth/jwks.json"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('keys array', () => pm.expect(pm.response.json().keys).to.be.an('array').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Platform Token Flow",
+      "description": "Uses the /auth/dev/token helper endpoint to mint a platform token without a real login. Works on both local and dev (AWS) environments.",
+      "item": [
+        {
+          "name": "Get Dev Token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read\",\n  \"user_id\": \"dev-user-id\",\n  \"email\": \"dev@example.com\",\n  \"name\": \"Dev User\",\n  \"org_id\": \"dev-org-id\"\n}"
+            },
+            "url": "{{authBaseUrl}}/auth/dev/token",
+            "description": "Mints a platform JWT. Token is saved to {{platformToken}} automatically."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Protected Health",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/health/protected"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('authenticated', () => pm.expect(pm.response.json().authenticated).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session (me)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('user.id', () => pm.expect(pm.response.json().user && pm.response.json().user.id).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Agent CRUD + Status Smoke",
+      "description": "Environment-agnostic smoke flow for Spec-03. Mints a platform token for {{mindrithmOrgId}}, creates an agent, verifies POST -> GET/list persistence, exercises allowed status transitions, confirms live -> draft is rejected, and soft-deletes the smoke agent.",
+      "item": [
+        {
+          "name": "Mint smoke token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{authBaseUrl}}/auth/dev/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_agent_smoke\",\n  \"email\": \"smoke@mindrithm.ai\",\n  \"name\": \"Agent Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            },
+            "description": "Mints a platform JWT with the environment org id. Saved to {{platformToken}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{smokeAgentName}}\",\n  \"uiConfig\": {\n    \"channels\": [\"Web\"],\n    \"welcomeMessage\": \"Hello from Postman smoke\"\n  },\n  \"aiConfig\": {\n    \"modelTier\": \"fast\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.test('created as draft', () => pm.expect(j.status).to.eql('draft'));",
+                  "pm.environment.set('smokeAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Agent by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{smokeAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('id matches', () => pm.expect(j.id).to.eql(pm.environment.get('smokeAgentId')));",
+                  "pm.test('name matches', () => pm.expect(j.name).to.eql(pm.environment.get('smokeAgentName')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Agents includes created agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const agents = pm.response.json();",
+                  "pm.test('returns array', () => pm.expect(agents).to.be.an('array'));",
+                  "pm.test('created agent appears', () => pm.expect(agents.some((agent) => agent.id === pm.environment.get('smokeAgentId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish Agent — draft to live",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{smokeAgentId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"live\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('status live', () => pm.expect(pm.response.json().status).to.eql('live'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pause Agent — live to paused",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{smokeAgentId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paused\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('status paused', () => pm.expect(pm.response.json().status).to.eql('paused'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resume Agent — paused to live",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{smokeAgentId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"live\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('status live', () => pm.expect(pm.response.json().status).to.eql('live'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid live to draft transition",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{smokeAgentId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"draft\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "const j = pm.response.json();",
+                  "pm.test('invalid transition message', () => pm.expect(String(j.message)).to.include('Invalid agent status transition'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{smokeAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('smokeAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Platform Login Flow (via Clerk)",
+      "description": "OAuth2 Authorization Code + PKCE via auth-handler, which federates to Clerk.\n\nauth-handler is the OIDC issuer — it redirects to Clerk for login, then issues a platform JWT.\nThe token returned here is a platform token accepted by the API authorizer.\n\nTo get a token:\n1. Open this folder's Authorization tab\n2. Click 'Get New Access Token'\n3. Sign in via the Clerk login page (opened by auth-handler)\n4. Click 'Use Token'\n\nAll requests in this folder inherit that token.\nWorks on both Local and Dev (AWS) environments.",
+      "auth": {
+        "type": "oauth2",
+        "oauth2": [
+          {
+            "key": "grant_type",
+            "value": "authorization_code_with_pkce",
+            "type": "string"
+          },
+          {
+            "key": "authUrl",
+            "value": "{{authBaseUrl}}/auth/authorize?connection={{authConnection}}&org_id={{mindrithmOrgId}}",
+            "type": "string"
+          },
+          {
+            "key": "accessTokenUrl",
+            "value": "{{authBaseUrl}}/auth/token",
+            "type": "string"
+          },
+          {
+            "key": "clientId",
+            "value": "forge-postman",
+            "type": "string"
+          },
+          {
+            "key": "scope",
+            "value": "openid profile email offline_access agents:read agents:write",
+            "type": "string"
+          },
+          {
+            "key": "redirect_uri",
+            "value": "{{oauthRedirectUri}}",
+            "type": "string"
+          },
+          {
+            "key": "tokenName",
+            "value": "Platform Token",
+            "type": "string"
+          },
+          {
+            "key": "addTokenTo",
+            "value": "header",
+            "type": "string"
+          },
+          {
+            "key": "useBrowser",
+            "value": "true",
+            "type": "boolean"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Auth Handler UserInfo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{authBaseUrl}}/auth/userinfo"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('sub', () => pm.expect(pm.response.json().sub).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('user.id', () => pm.expect(pm.response.json().user && pm.response.json().user.id).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Protected Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/health/protected"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout (clear session + token)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{authBaseUrl}}/auth/logout",
+            "description": "Clears the auth-handler browser session cookie and the saved platformToken.\n\nAfter running this:\n1. In the Platform Login Flow folder → Authorization tab → delete the cached 'Platform Token'\n2. Click 'Get New Access Token' to start a fresh Clerk login\n\nThis forces a clean re-authentication so org_id is picked up fresh."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('platformToken');",
+                  "console.log('Session cleared. Now go to Platform Login Flow → Authorization → delete cached token → Get New Access Token.');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
