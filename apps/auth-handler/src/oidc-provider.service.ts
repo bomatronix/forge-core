@@ -108,7 +108,10 @@ export class OidcProviderService {
 
     const existingSession = this.readBrowserSession(request);
     if (existingSession && existingSession.provider === connection.id) {
-      return this.completeAuthorizationRequest(request, pending, existingSession);
+      const sessionWithOrg = pending.orgId
+        ? { ...existingSession, orgId: pending.orgId }
+        : existingSession;
+      return this.completeAuthorizationRequest(request, pending, sessionWithOrg);
     }
 
     if (connection.type === 'dev') {
@@ -706,7 +709,7 @@ export class OidcProviderService {
       email: session.email,
       name: session.name,
       avatarUrl: session.avatarUrl,
-      orgId: session.orgId,
+      orgId: pending.orgId ?? session.orgId,
       permissions: this.resolvePermissions(pending.scope, session.permissions),
       codeChallenge: pending.codeChallenge,
       codeChallengeMethod: pending.codeChallengeMethod,
