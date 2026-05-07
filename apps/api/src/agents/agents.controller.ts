@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { CurrentTenant, RequirePermissions } from '@forge-core/core';
-import { CreateAgentDto, UpdateAgentDto } from '@forge-core/common';
+import { CreateAgentDto, UpdateAgentDto, UpdateStatusDto } from '@forge-core/common';
 import { AgentsService } from './agents.service';
 
 @Controller('agents')
@@ -29,6 +29,16 @@ export class AgentsController {
   @RequirePermissions('agents:write')
   update(@CurrentTenant() orgId: string, @Param('id') id: string, @Body() dto: UpdateAgentDto) {
     return this.agentsService.update(orgId, id, dto);
+  }
+
+  @Patch(':id/status')
+  @RequirePermissions('agents:write')
+  updateStatus(
+    @CurrentTenant() orgId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateStatusDto,
+  ) {
+    return this.agentsService.updateStatus(orgId, id, dto);
   }
 
   @Delete(':id')

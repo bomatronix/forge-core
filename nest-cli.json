@@ -62,6 +62,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/auth-handler/tsconfig.app.json"
       }
+    },
+    "migrate": {
+      "type": "application",
+      "root": "apps/migrate",
+      "sourceRoot": "apps/migrate/src",
+      "entryFile": "handler",
+      "compilerOptions": {
+        "tsConfigPath": "apps/migrate/tsconfig.app.json"
+      }
     }
   }
 }

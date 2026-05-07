@@ -1,0 +1,100 @@
+name: Migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Target environment
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - qa
+          - staging
+          - prod
+      client:
+        description: Client to migrate
+        required: true
+        default: mindrithm
+        type: choice
+        options:
+          - mindrithm
+      action:
+        description: Migration action
+        required: true
+        default: migrate
+        type: choice
+        options:
+          - migrate
+          - bootstrap-and-migrate
+
+jobs:
+  migrate:
+    name: Run migrations (${{ inputs.client }} ${{ inputs.env }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env == 'dev' && 'development' || inputs.env == 'prod' && 'production' || inputs.env }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve client config
+        id: config
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs')
+          const client = process.env.CLIENT
+          const env = process.env.DEPLOY_ENV
+          const config = JSON.parse(fs.readFileSync('.github/clients.json', 'utf8'))
+          const envConfig = config[client]?.[env]
+          if (!envConfig) {
+            throw new Error(`No config found for client '${client}' env '${env}'`)
+          }
+          if (!envConfig.migrator_function) {
+            throw new Error(`No migrator_function configured for client '${client}' env '${env}'. Add it to .github/clients.json.`)
+          }
+          console.log(`role_to_assume=${envConfig.role_to_assume}`)
+          console.log(`region=${envConfig.region}`)
+          console.log(`migrator_function=${envConfig.migrator_function}`)
+          NODE
+        env:
+          CLIENT: ${{ inputs.client }}
+          DEPLOY_ENV: ${{ inputs.env }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.config.outputs.role_to_assume }}
+          aws-region: ${{ steps.config.outputs.region }}
+
+      - name: Invoke migrator
+        env:
+          MIGRATION_ACTION: ${{ inputs.action }}
+          FUNCTION_NAME: ${{ steps.config.outputs.migrator_function }}
+        run: |
+          set -euo pipefail
+          payload=$(jq -nc --arg action "$MIGRATION_ACTION" '{action: $action}')
+          aws lambda invoke \
+            --function-name "$FUNCTION_NAME" \
+            --payload "$payload" \
+            --cli-binary-format raw-in-base64-out \
+            response.json \
+            > invoke.json
+
+          echo "Invoke metadata:"
+          cat invoke.json | jq .
+          echo "Migration response:"
+          cat response.json | jq .
+
+          if jq -e '.FunctionError?' invoke.json >/dev/null; then
+            echo "::error::Migrator Lambda returned a function error"
+            exit 1
+          fi
+
+          jq -e '.ok == true' response.json >/dev/null

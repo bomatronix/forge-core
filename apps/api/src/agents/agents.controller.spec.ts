@@ -9,7 +9,7 @@ const AGENT_ID = 'agent_abc';
 const mockAgent = {
   id: AGENT_ID,
   name: 'Test Agent',
-  status: 'active' as const,
+  status: 'draft' as const,
   channels: [] as never[],
   conversations: 0,
   resolution: null,
@@ -21,6 +21,7 @@ const mockService: jest.Mocked<AgentsService> = {
   findOne: jest.fn(),
   create: jest.fn(),
   update: jest.fn(),
+  updateStatus: jest.fn(),
   remove: jest.fn(),
 } as unknown as jest.Mocked<AgentsService>;
 
@@ -76,6 +77,15 @@ describe('AgentsController', () => {
       mockService.update.mockResolvedValue({ id: AGENT_ID, ...dto } as never);
       await controller.update(ORG, AGENT_ID, dto as never);
       expect(mockService.update).toHaveBeenCalledWith(ORG, AGENT_ID, dto);
+    });
+  });
+
+  describe('updateStatus()', () => {
+    it('delegates to service with org + id + dto', async () => {
+      const dto = { status: 'live' as const };
+      mockService.updateStatus.mockResolvedValue({ id: AGENT_ID, ...dto } as never);
+      await controller.updateStatus(ORG, AGENT_ID, dto);
+      expect(mockService.updateStatus).toHaveBeenCalledWith(ORG, AGENT_ID, dto);
     });
   });
 

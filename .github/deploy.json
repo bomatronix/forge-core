@@ -1,17 +1,21 @@
 {
+  "_comment": "Build + deploy manifest. Resolution order for bundle→Lambda-function-name mapping: (1) client_artifacts[client], (2) artifacts, (3) derive from apps. A bundle listed in 'apps' but absent from both 'artifacts' and the client's client_artifacts entry will be built but never uploaded — add it to the appropriate map to enable deployment.",
   "workspaces": {
     "forge-core": {
-      "apps": ["api", "authorizer", "auth-handler"],
+      "apps": ["api", "authorizer", "auth-handler", "migrate"],
+      "_comment_artifacts": "Default bundle→Lambda mapping used by any client without a client_artifacts override. 'migrate' is intentionally absent — only clients with a deployed migrator Lambda should map it; add via client_artifacts instead.",
       "artifacts": {
         "api": ["crud", "presign"],
         "authorizer": ["authorizer"],
         "auth-handler": ["auth-handler"]
       },
+      "_comment_client_artifacts": "Per-client overrides. An entry here replaces 'artifacts' entirely for that client — list every bundle the client needs, including migrate if the client has a migrator Lambda.",
       "client_artifacts": {
         "mindrithm": {
           "api": ["forge-core-api"],
           "authorizer": ["authorizer"],
-          "auth-handler": ["auth-handler"]
+          "auth-handler": ["auth-handler"],
+          "migrate": ["forge-core-migrator"]
         }
       },
       "lambda_key_prefix": "api",
