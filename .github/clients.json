@@ -9,6 +9,7 @@
     }
   },
   "mindrithm": {
+    "account_id": "889851937279",
     "dev": {
       "role_to_assume": "arn:aws:iam::889851937279:role/mindrithm-dev-role-artifact-publisher",
       "s3_bucket": "mindrithm-dev-forge-api-code",
@@ -16,6 +17,30 @@
       "region": "us-east-1",
       "tfe_workspace": "mindrithm-api-dev",
       "migrator_function": "mindrithm-core-migrator-dev"
+    },
+    "qa": {
+      "role_to_assume": "arn:aws:iam::889851937279:role/mindrithm-qa-role-artifact-publisher",
+      "s3_bucket": "mindrithm-qa-forge-api-code",
+      "kms_key_id": "",
+      "region": "us-east-1",
+      "tfe_workspace": "mindrithm-api-qa",
+      "migrator_function": "mindrithm-core-migrator-qa"
+    },
+    "staging": {
+      "role_to_assume": "arn:aws:iam::889851937279:role/mindrithm-staging-role-artifact-publisher",
+      "s3_bucket": "mindrithm-staging-forge-api-code",
+      "kms_key_id": "",
+      "region": "us-east-1",
+      "tfe_workspace": "mindrithm-api-staging",
+      "migrator_function": "mindrithm-core-migrator-staging"
+    },
+    "prod": {
+      "role_to_assume": "arn:aws:iam::889851937279:role/mindrithm-prod-role-artifact-publisher",
+      "s3_bucket": "mindrithm-prod-forge-api-code",
+      "kms_key_id": "",
+      "region": "us-east-1",
+      "tfe_workspace": "mindrithm-api-prod",
+      "migrator_function": "mindrithm-core-migrator-prod"
     }
   }
 }
