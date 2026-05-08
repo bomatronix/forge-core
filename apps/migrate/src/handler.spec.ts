@@ -49,13 +49,23 @@ describe('migrator bootstrapRolesForPool', () => {
     );
   });
 
-  it('grants rds_iam to app and migrator roles', async () => {
+  it('revokes rds_iam from app role (proxy handles IAM at client layer)', async () => {
     const { pool, query } = createPoolMock(true);
 
     await bootstrapRolesForPool(pool, baseParams);
 
     expect(sqlCalls(query)).toEqual(
-      expect.arrayContaining(['GRANT rds_iam TO "app"', 'GRANT rds_iam TO "migrator"']),
+      expect.arrayContaining(['REVOKE rds_iam FROM "app"']),
+    );
+  });
+
+  it('grants rds_iam to migrator role (direct IAM connection bypassing proxy)', async () => {
+    const { pool, query } = createPoolMock(true);
+
+    await bootstrapRolesForPool(pool, baseParams);
+
+    expect(sqlCalls(query)).toEqual(
+      expect.arrayContaining(['GRANT rds_iam TO "migrator"']),
     );
   });
 
