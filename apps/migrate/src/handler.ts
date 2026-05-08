@@ -28,6 +28,20 @@ interface RdsSecret {
   dbname?: string;
 }
 
+export interface BootstrapRolesParams {
+  appUsername: string;
+  migratorUsername: string;
+  database: string;
+  adminUsername: string;
+}
+
+type QueryablePool = Pick<Pool, 'query'>;
+
+interface AdminPool {
+  pool: Pool;
+  username: string;
+}
+
 const secrets = new SecretsManagerClient({});
 
 function requiredEnv(name: string): string {
@@ -88,7 +102,7 @@ async function loadAdminSecret(): Promise<RdsSecret> {
   return JSON.parse(secretString) as RdsSecret;
 }
 
-async function createAdminPool(): Promise<Pool> {
+async function createAdminPool(): Promise<AdminPool> {
   const secret = await loadAdminSecret();
   const rawHost = process.env.DB_ADMIN_HOST?.trim() || secret.host;
   if (!rawHost) {
@@ -97,68 +111,87 @@ async function createAdminPool(): Promise<Pool> {
 
   const fallbackPort = Number(secret.port ?? process.env.DB_PORT ?? 5432);
   const { host, port } = splitHostPort(rawHost, fallbackPort);
+  const username = process.env.DB_ADMIN_USERNAME?.trim() || secret.username;
   const config: PoolConfig = {
     host,
     port,
-    user: process.env.DB_ADMIN_USERNAME?.trim() || secret.username,
+    user: username,
     password: secret.password,
     database: process.env.DB_NAME?.trim() || secret.dbname,
     ssl: { rejectUnauthorized: false },
     max: 1,
   };
 
-  if (!config.user || !config.password || !config.database) {
+  if (!username || !config.password || !config.database) {
     throw new Error('Admin DB connection requires username, password, and database');
   }
 
-  return new Pool(config);
+  return { pool: new Pool(config), username };
 }
 
-async function ensureRole(pool: Pool, roleName: string): Promise<void> {
+async function ensureRole(pool: QueryablePool, roleName: string): Promise<void> {
   const existing = await pool.query('select 1 from pg_roles where rolname = $1', [roleName]);
   if ((existing.rowCount ?? 0) === 0) {
     await pool.query(`CREATE ROLE ${quoteIdent(roleName)} LOGIN`);
   }
 }
 
+export async function bootstrapRolesForPool(
+  pool: QueryablePool,
+  { appUsername, migratorUsername, database, adminUsername }: BootstrapRolesParams,
+): Promise<void> {
+  const app = quoteIdent(appUsername);
+  const migrator = quoteIdent(migratorUsername);
+  const db = quoteIdent(database);
+  const admin = quoteIdent(adminUsername);
+
+  await pool.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+  await ensureRole(pool, appUsername);
+  await ensureRole(pool, migratorUsername);
+
+  // RDS Proxy currently uses a secret-backed backend user and SET ROLEs to the
+  // IAM-authenticated client role. PostgreSQL requires explicit membership.
+  if (adminUsername !== appUsername) {
+    await pool.query(`GRANT ${app} TO ${admin}`);
+  }
+
+  if (adminUsername !== migratorUsername) {
+    await pool.query(`GRANT ${migrator} TO ${admin}`);
+  }
+
+  await pool.query(`GRANT rds_iam TO ${app}`);
+  await pool.query(`GRANT rds_iam TO ${migrator}`);
+  await pool.query(`GRANT CONNECT ON DATABASE ${db} TO ${app}, ${migrator}`);
+  await pool.query(`GRANT CREATE ON DATABASE ${db} TO ${migrator}`);
+  await pool.query(`GRANT USAGE ON SCHEMA public TO ${app}, ${migrator}`);
+  await pool.query(`GRANT CREATE ON SCHEMA public TO ${migrator}`);
+  await pool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${app}`);
+  await pool.query(`GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${app}`);
+  await pool.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${migrator}`);
+  await pool.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${migrator}`);
+  await pool.query(`CREATE SCHEMA IF NOT EXISTS drizzle AUTHORIZATION ${migrator}`);
+  await pool.query(`ALTER SCHEMA drizzle OWNER TO ${migrator}`);
+  await pool.query(`GRANT USAGE, CREATE ON SCHEMA drizzle TO ${migrator}`);
+  await pool.query(
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${migrator} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${app}`,
+  );
+  await pool.query(
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${migrator} IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${app}`,
+  );
+}
+
 async function bootstrapRoles(): Promise<void> {
-  const appUsername = requiredEnv('DB_APP_USERNAME');
-  const migratorUsername = requiredEnv('DB_MIGRATOR_USERNAME');
-  const database = requiredEnv('DB_NAME');
-  const pool = await createAdminPool();
+  const admin = await createAdminPool();
 
   try {
-    await pool.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
-    await ensureRole(pool, appUsername);
-    await ensureRole(pool, migratorUsername);
-
-    const app = quoteIdent(appUsername);
-    const migrator = quoteIdent(migratorUsername);
-    const db = quoteIdent(database);
-
-    await pool.query(`GRANT rds_iam TO ${app}`);
-    await pool.query(`GRANT rds_iam TO ${migrator}`);
-    await pool.query(`GRANT CONNECT ON DATABASE ${db} TO ${app}, ${migrator}`);
-    await pool.query(`GRANT CREATE ON DATABASE ${db} TO ${migrator}`);
-    await pool.query(`GRANT USAGE ON SCHEMA public TO ${app}, ${migrator}`);
-    await pool.query(`GRANT CREATE ON SCHEMA public TO ${migrator}`);
-    await pool.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${app}`,
-    );
-    await pool.query(`GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${app}`);
-    await pool.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${migrator}`);
-    await pool.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${migrator}`);
-    await pool.query(`CREATE SCHEMA IF NOT EXISTS drizzle AUTHORIZATION ${migrator}`);
-    await pool.query(`ALTER SCHEMA drizzle OWNER TO ${migrator}`);
-    await pool.query(`GRANT USAGE, CREATE ON SCHEMA drizzle TO ${migrator}`);
-    await pool.query(
-      `ALTER DEFAULT PRIVILEGES FOR ROLE ${migrator} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${app}`,
-    );
-    await pool.query(
-      `ALTER DEFAULT PRIVILEGES FOR ROLE ${migrator} IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${app}`,
-    );
+    await bootstrapRolesForPool(admin.pool, {
+      appUsername: requiredEnv('DB_APP_USERNAME'),
+      migratorUsername: requiredEnv('DB_MIGRATOR_USERNAME'),
+      database: requiredEnv('DB_NAME'),
+      adminUsername: admin.username,
+    });
   } finally {
-    await pool.end();
+    await admin.pool.end();
   }
 }
 
