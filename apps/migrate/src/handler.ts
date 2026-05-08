@@ -245,6 +245,14 @@ export async function bootstrapRolesForPool(
 
   await pool.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
   await ensureRole(pool, appUsername);
+
+  const appUserSecretArn = process.env.DB_APP_USER_SECRET_ARN?.trim();
+  if (appUserSecretArn) {
+    const appSecretResp = await secrets.send(new GetSecretValueCommand({ SecretId: appUserSecretArn }));
+    const { password } = JSON.parse(appSecretResp.SecretString!) as { password: string };
+    await pool.query(`ALTER USER ${app} WITH PASSWORD '${password.replace(/'/g, "''")}'`);
+  }
+
   await ensureRole(pool, migratorUsername);
 
   // Keep the password-authenticated admin user out of rds_iam, including
