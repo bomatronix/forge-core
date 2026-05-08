@@ -41,6 +41,18 @@ type MigrationClient = Pool | PoolClient;
 interface AdminPool {
   pool: Pool;
   username: string;
+  authMode: 'password' | 'iam';
+}
+
+interface DirectIamPoolConfig {
+  rawHost: string;
+  fallbackPort: number;
+  username: string;
+  database: string;
+}
+
+export interface MigratorSessionParams {
+  appUsername: string;
 }
 
 const secrets = new SecretsManagerClient({});
@@ -67,6 +79,60 @@ function splitHostPort(host: string, fallbackPort: number): { host: string; port
   }
 
   return { host: match[1], port: Number(match[2]) };
+}
+
+function describeDatabaseError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  const details: string[] = [error.message];
+  const dbError = error as Error &
+    Partial<{
+      code: string;
+      detail: string;
+      hint: string;
+      schema: string;
+      table: string;
+      routine: string;
+    }>;
+
+  for (const [key, value] of Object.entries(dbError)) {
+    if (
+      ['code', 'detail', 'hint', 'schema', 'table', 'routine'].includes(key) &&
+      typeof value === 'string' &&
+      value.trim() !== ''
+    ) {
+      details.push(`${key}=${value}`);
+    }
+  }
+
+  return details.join('; ');
+}
+
+function isPamAuthenticationError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('PAM authentication failed');
+}
+
+async function createDirectIamPool({
+  rawHost,
+  fallbackPort,
+  username,
+  database,
+}: DirectIamPoolConfig): Promise<Pool> {
+  const { host, port } = splitHostPort(rawHost, fallbackPort);
+  const signer = new Signer({ hostname: host, port, region: process.env.AWS_REGION, username });
+  const token = await signer.getAuthToken();
+
+  return new Pool({
+    host,
+    port,
+    user: username,
+    database,
+    password: token,
+    ssl: { rejectUnauthorized: false },
+    max: 1,
+  });
 }
 
 async function createIamPool(): Promise<Pool> {
@@ -127,7 +193,38 @@ async function createAdminPool(): Promise<AdminPool> {
     throw new Error('Admin DB connection requires username, password, and database');
   }
 
-  return { pool: new Pool(config), username };
+  const passwordPool = new Pool(config);
+
+  try {
+    await passwordPool.query('select 1');
+    return { pool: passwordPool, username, authMode: 'password' };
+  } catch (error) {
+    await passwordPool.end().catch(() => undefined);
+
+    if (!isPamAuthenticationError(error)) {
+      throw error;
+    }
+
+    const iamPool = await createDirectIamPool({
+      rawHost,
+      fallbackPort: port,
+      username,
+      database: config.database,
+    });
+
+    try {
+      await iamPool.query('select 1');
+      console.warn(
+        `[migrate] admin password auth failed for ${username}; using IAM fallback to repair rds_iam membership`,
+      );
+      return { pool: iamPool, username, authMode: 'iam' };
+    } catch (iamError) {
+      await iamPool.end().catch(() => undefined);
+      throw new Error(
+        `Admin password auth failed and IAM fallback failed. Ensure the migrator Lambda can rds-db:connect as ${username}. Password error: ${describeDatabaseError(error)}. IAM error: ${describeDatabaseError(iamError)}`,
+      );
+    }
+  }
 }
 
 async function ensureRole(pool: QueryablePool, roleName: string): Promise<void> {
@@ -150,14 +247,18 @@ export async function bootstrapRolesForPool(
   await ensureRole(pool, appUsername);
   await ensureRole(pool, migratorUsername);
 
-  // RDS Proxy currently uses a secret-backed backend user and SET ROLEs to the
-  // IAM-authenticated client role. PostgreSQL requires explicit membership.
+  // Keep the password-authenticated admin user out of rds_iam, including
+  // indirect membership through app/migrator, or RDS forces IAM/PAM auth.
   if (adminUsername !== appUsername) {
-    await pool.query(`GRANT ${app} TO ${admin}`);
+    await pool.query(`REVOKE ${app} FROM ${admin}`);
   }
 
   if (adminUsername !== migratorUsername) {
-    await pool.query(`GRANT ${migrator} TO ${admin}`);
+    await pool.query(`REVOKE ${migrator} FROM ${admin}`);
+  }
+
+  if (adminUsername !== appUsername && adminUsername !== migratorUsername) {
+    await pool.query(`REVOKE rds_iam FROM ${admin}`);
   }
 
   await pool.query(`GRANT rds_iam TO ${app}`);
@@ -170,15 +271,28 @@ export async function bootstrapRolesForPool(
   await pool.query(`GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${app}`);
   await pool.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${migrator}`);
   await pool.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${migrator}`);
-  await pool.query(`CREATE SCHEMA IF NOT EXISTS drizzle AUTHORIZATION ${migrator}`);
-  await pool.query(`ALTER SCHEMA drizzle OWNER TO ${migrator}`);
-  await pool.query(`GRANT USAGE, CREATE ON SCHEMA drizzle TO ${migrator}`);
+
+  const drizzleSchema = await pool.query("select to_regnamespace('drizzle') as schema_oid");
+  if (drizzleSchema.rows[0]?.schema_oid) {
+    await pool.query(`GRANT USAGE, CREATE ON SCHEMA drizzle TO ${migrator}`);
+  }
+}
+
+export async function prepareMigratorSessionForPool(
+  pool: QueryablePool,
+  { appUsername }: MigratorSessionParams,
+): Promise<void> {
+  const app = quoteIdent(appUsername);
+
+  await pool.query('CREATE SCHEMA IF NOT EXISTS drizzle');
   await pool.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${migrator} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${app}`,
+    `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${app}`,
   );
   await pool.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${migrator} IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${app}`,
+    `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${app}`,
   );
+  await pool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${app}`);
+  await pool.query(`GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${app}`);
 }
 
 function describeMigrationError(error: unknown): string {
@@ -241,10 +355,34 @@ async function migrateWithClient(client: MigrationClient, migrationsFolder: stri
   }
 }
 
+async function createMigrationPool(): Promise<Pool> {
+  if (process.env.DATABASE_URL?.trim()) {
+    return new Pool({ connectionString: process.env.DATABASE_URL });
+  }
+
+  const directHost = process.env.DB_MIGRATOR_HOST?.trim() || process.env.DB_ADMIN_HOST?.trim();
+  if (!directHost) {
+    return createIamPool();
+  }
+
+  return createDirectIamPool({
+    rawHost: directHost,
+    fallbackPort: Number(process.env.DB_PORT ?? 5432),
+    username: process.env.DB_MIGRATOR_USERNAME?.trim() || requiredEnv('DB_USERNAME'),
+    database: requiredEnv('DB_NAME'),
+  });
+}
+
 async function runMigrations(migrationsFolder: string): Promise<void> {
-  const pool = await createIamPool();
+  const pool = await createMigrationPool();
 
   try {
+    if (process.env.DB_APP_USERNAME?.trim()) {
+      await prepareMigratorSessionForPool(pool, {
+        appUsername: process.env.DB_APP_USERNAME.trim(),
+      });
+    }
+
     await migrateWithClient(pool, migrationsFolder);
   } finally {
     await pool.end();
@@ -262,17 +400,18 @@ async function bootstrapAndRunMigrations(migrationsFolder: string): Promise<void
 
   try {
     await bootstrapRolesForPool(admin.pool, params);
-
-    const client = await admin.pool.connect();
-    try {
-      await client.query(`SET ROLE ${quoteIdent(params.migratorUsername)}`);
-      await migrateWithClient(client, migrationsFolder);
-    } finally {
-      await client.query('RESET ROLE').catch(() => undefined);
-      client.release();
-    }
   } finally {
     await admin.pool.end();
+  }
+
+  const migrationPool = await createMigrationPool();
+  try {
+    await prepareMigratorSessionForPool(migrationPool, {
+      appUsername: params.appUsername,
+    });
+    await migrateWithClient(migrationPool, migrationsFolder);
+  } finally {
+    await migrationPool.end();
   }
 }
 
