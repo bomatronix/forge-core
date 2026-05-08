@@ -3,7 +3,7 @@ import { Signer } from '@aws-sdk/rds-signer';
 import type { Handler } from 'aws-lambda';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { Pool, type PoolConfig } from 'pg';
+import { Pool, type PoolClient, type PoolConfig } from 'pg';
 import path from 'path';
 import * as schema from '@forge-core/core/db/schema';
 
@@ -36,6 +36,7 @@ export interface BootstrapRolesParams {
 }
 
 type QueryablePool = Pick<Pool, 'query'>;
+type MigrationClient = Pool | PoolClient;
 
 interface AdminPool {
   pool: Pool;
@@ -180,29 +181,98 @@ export async function bootstrapRolesForPool(
   );
 }
 
-async function bootstrapRoles(): Promise<void> {
-  const admin = await createAdminPool();
+function describeMigrationError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  const details: string[] = [error.message];
+  const cause = (error as Error & { cause?: unknown }).cause;
+
+  if (cause instanceof Error) {
+    details.push(`cause=${cause.message}`);
+  }
+
+  if (cause && typeof cause === 'object') {
+    const pgCause = cause as Partial<{
+      code: string;
+      detail: string;
+      hint: string;
+      schema: string;
+      table: string;
+      routine: string;
+    }>;
+
+    for (const [key, value] of Object.entries(pgCause)) {
+      if (
+        ['code', 'detail', 'hint', 'schema', 'table', 'routine'].includes(key) &&
+        typeof value === 'string' &&
+        value.trim() !== ''
+      ) {
+        details.push(`${key}=${value}`);
+      }
+    }
+  }
+
+  return details.join('; ');
+}
+
+async function logMigrationPreflight(client: MigrationClient): Promise<void> {
+  const result = await client.query(`
+    select
+      current_user,
+      session_user,
+      current_database(),
+      has_database_privilege(current_user, current_database(), 'CREATE') as can_create_database,
+      to_regnamespace('drizzle') is not null as drizzle_schema_exists
+  `);
+
+  console.log('[migrate] database preflight', JSON.stringify(result.rows[0] ?? {}));
+}
+
+async function migrateWithClient(client: MigrationClient, migrationsFolder: string): Promise<void> {
+  const db = drizzle(client, { schema });
 
   try {
-    await bootstrapRolesForPool(admin.pool, {
-      appUsername: requiredEnv('DB_APP_USERNAME'),
-      migratorUsername: requiredEnv('DB_MIGRATOR_USERNAME'),
-      database: requiredEnv('DB_NAME'),
-      adminUsername: admin.username,
-    });
-  } finally {
-    await admin.pool.end();
+    await logMigrationPreflight(client);
+    await migrate(db, { migrationsFolder });
+  } catch (error) {
+    throw new Error(`Drizzle migration failed: ${describeMigrationError(error)}`);
   }
 }
 
 async function runMigrations(migrationsFolder: string): Promise<void> {
   const pool = await createIamPool();
-  const db = drizzle(pool, { schema });
 
   try {
-    await migrate(db, { migrationsFolder });
+    await migrateWithClient(pool, migrationsFolder);
   } finally {
     await pool.end();
+  }
+}
+
+async function bootstrapAndRunMigrations(migrationsFolder: string): Promise<void> {
+  const admin = await createAdminPool();
+  const params = {
+    appUsername: requiredEnv('DB_APP_USERNAME'),
+    migratorUsername: requiredEnv('DB_MIGRATOR_USERNAME'),
+    database: requiredEnv('DB_NAME'),
+    adminUsername: admin.username,
+  };
+
+  try {
+    await bootstrapRolesForPool(admin.pool, params);
+
+    const client = await admin.pool.connect();
+    try {
+      await client.query(`SET ROLE ${quoteIdent(params.migratorUsername)}`);
+      await migrateWithClient(client, migrationsFolder);
+    } finally {
+      await client.query('RESET ROLE').catch(() => undefined);
+      client.release();
+    }
+  } finally {
+    await admin.pool.end();
   }
 }
 
@@ -216,10 +286,10 @@ export const handler: Handler<MigrationEvent, MigrationResult> = async (event = 
     process.env.DRIZZLE_MIGRATIONS_FOLDER?.trim() ?? path.join(__dirname, 'drizzle', 'migrations');
 
   if (action === 'bootstrap-and-migrate') {
-    await bootstrapRoles();
+    await bootstrapAndRunMigrations(migrationsFolder);
+  } else {
+    await runMigrations(migrationsFolder);
   }
-
-  await runMigrations(migrationsFolder);
 
   return {
     ok: true,
