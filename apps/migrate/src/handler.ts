@@ -269,7 +269,7 @@ export async function bootstrapRolesForPool(
     await pool.query(`REVOKE rds_iam FROM ${admin}`);
   }
 
-  await pool.query(`GRANT rds_iam TO ${app}`);
+  await pool.query(`REVOKE rds_iam FROM ${app}`);
   await pool.query(`GRANT rds_iam TO ${migrator}`);
   await pool.query(`GRANT CONNECT ON DATABASE ${db} TO ${app}, ${migrator}`);
   await pool.query(`GRANT CREATE ON DATABASE ${db} TO ${migrator}`);
