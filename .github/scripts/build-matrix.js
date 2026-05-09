@@ -80,9 +80,10 @@ function affectedWorkspaces() {
 /**
  * Resolve the artifact map for a given workspace + client.
  * Prefers client_artifacts[clientName] over the default artifacts map.
+ * Returns undefined if neither source is configured — callers must validate.
  */
 function resolveArtifactsMap(ws, clientName) {
-  return ws.client_artifacts?.[clientName] ?? ws.artifacts ?? {}
+  return ws.client_artifacts?.[clientName] ?? ws.artifacts
 }
 
 /**
@@ -129,11 +130,21 @@ for (const { name: wsName } of affected) {
   for (const [clientName, clientData] of Object.entries(clientsJson)) {
     const clientEnv = clientData[deployEnv]
     if (!clientEnv) {
-      log(`  skip client=${clientName} — no '${deployEnv}' entry in clients.json`)
+      // Intentional skip: clients are only deployed to the environments they exist in.
+      // e.g. test-client is dev-only; it has no staging/prod entry. This is different
+      // from a missing workspace env entry, which would be a misconfiguration error.
+      log(`  skip client=${clientName} — no '${deployEnv}' entry in clients.json (client not deployed to this environment)`)
       continue
     }
 
     const artifactsMap = resolveArtifactsMap(ws, clientName)
+    if (!artifactsMap || Object.keys(artifactsMap).length === 0) {
+      throw new Error(
+        `No artifacts configured for workspace '${wsName}' / client '${clientName}'. ` +
+          `Add an entry to 'artifacts' or 'client_artifacts.${clientName}' in deploy.json.`,
+      )
+    }
+
     const artifactTargets = buildArtifactTargets(artifactsMap)
     const lambdaFunctions = buildLambdaFunctions(artifactsMap)
 
