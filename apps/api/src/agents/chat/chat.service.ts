@@ -38,12 +38,12 @@ export class ChatService implements OnModuleInit {
       throw new Error(`Secret ${arn} has no string value`);
     }
     // Secrets Manager supports both plain strings and JSON objects.
-    // If stored as JSON (e.g. {"ANTHROPIC_API_KEY": "sk-ant-..."}), extract
-    // the first value; otherwise use the raw string directly.
+    // If stored as JSON (e.g. {"ANTHROPIC_API_KEY": "sk-ant-..."}), prefer the
+    // explicit key name; fall back to first value for other JSON secrets.
     try {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const first = Object.values(parsed)[0];
-      if (typeof first === 'string') return first.trim();
+      const value = parsed['ANTHROPIC_API_KEY'] ?? Object.values(parsed)[0];
+      if (typeof value === 'string') return value.trim();
     } catch {
       // not JSON — use raw
     }
@@ -103,9 +103,7 @@ export class ChatService implements OnModuleInit {
         logger.error(
           `[streamChat] agent=${agentId} ← Anthropic error: ${err instanceof Error ? err.message : String(err)}`,
         );
-        throw new BadGatewayException(
-          `Anthropic API error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        throw new BadGatewayException('Upstream API error');
       }
     }
 
@@ -132,11 +130,10 @@ export class ChatService implements OnModuleInit {
         messages,
       });
 
-      const content =
-        response.content
-          .filter((block) => block.type === 'text')
-          .map((block) => (block as { type: 'text'; text: string }).text)
-          .join('') ?? '';
+      const content = response.content
+        .filter((block) => block.type === 'text')
+        .map((block) => (block as { type: 'text'; text: string }).text)
+        .join('');
 
       this.logger.log(
         `[chat] agent=${agentId} ← Anthropic ok in=${response.usage.input_tokens} out=${response.usage.output_tokens}`,
@@ -153,9 +150,7 @@ export class ChatService implements OnModuleInit {
       this.logger.error(
         `[chat] agent=${agentId} ← Anthropic error: ${err instanceof Error ? err.message : String(err)}`,
       );
-      throw new BadGatewayException(
-        `Anthropic API error: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      throw new BadGatewayException('Upstream API error');
     }
   }
 }
