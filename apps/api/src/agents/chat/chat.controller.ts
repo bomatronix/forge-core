@@ -35,8 +35,9 @@ export class ChatController {
     res.flushHeaders();
 
     for await (const chunk of stream) {
+      if (res.destroyed) break;
       res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     }
-    res.end();
+    if (!res.destroyed) res.end();
   }
 }
