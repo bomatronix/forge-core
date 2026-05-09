@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 /**
- * build-matrix.js — Reads .github/deploy.json + .github/clients.json + paths-filter output,
+ * build-matrix.js — Reads .github/deploy.json + paths-filter output,
  * produces a GitHub Actions matrix JSON array for a given environment.
  *
  * Env vars (set by the workflow before calling this script):
  *   DEPLOY_ENV     — target environment: dev | qa | staging | prod
  *   CHANGED_FILES  — space-separated list of changed file paths
  *   LIBS_CHANGED   — 'true' if any libs/** file changed, else 'false'
- *   DEPLOY_CONFIG_CHANGED — 'true' if deploy config/script/workflow files changed
+ *   S3_*           — bucket name vars injected from GitHub vars (one per workspace/env)
  *
  * Each matrix entry:
- *   { client, workspace, role_to_assume, s3_bucket, kms_key_id, region, tfe_workspace,
- *     apps, artifact_targets, lambda_functions, lambda_key_prefix }
+ *   { workspace, apps, lambda_key_prefix, tfe_workspace, s3_bucket }
  */
 
 import { readFileSync } from 'fs'
@@ -22,116 +21,100 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const deployJson = JSON.parse(
   readFileSync(resolve(__dirname, '../deploy.json'), 'utf8'),
 )
-const clientsJson = JSON.parse(
-  readFileSync(resolve(__dirname, '../clients.json'), 'utf8'),
-)
 
 const deployEnv = process.env.DEPLOY_ENV
 if (!deployEnv) throw new Error('DEPLOY_ENV env var is required (dev|qa|staging|prod)')
 
 const changedFiles = (process.env.CHANGED_FILES ?? '').split(/\s+/).filter(Boolean)
 const libsChanged = process.env.LIBS_CHANGED === 'true'
-const deployConfigChanged =
-  process.env.DEPLOY_CONFIG_CHANGED === 'true' ||
-  changedFiles.some((file) => (
-    file === '.github/clients.json' ||
-    file === '.github/deploy.json' ||
-    file.startsWith('.github/scripts/') ||
-    file.startsWith('.github/workflows/')
-  ))
 
-function resolveArtifacts(wsName, ws, client) {
-  const artifactMap =
-    (client && ws.client_artifacts?.[client]) ??
-    ws.artifacts ??
-    Object.fromEntries(ws.apps.map((app) => [app, [app]]))
-  const bundleApps = new Set(ws.apps)
-  const artifactTargets = []
-  const lambdaFunctions = []
+const log = (...args) => console.error('[build-matrix]', ...args)
 
-  for (const [bundle, functions] of Object.entries(artifactMap)) {
-    if (!bundleApps.has(bundle)) {
-      throw new Error(
-        `Workspace '${wsName}' maps artifact bundle '${bundle}', but it is not listed in apps.`,
-      )
-    }
+log(`DEPLOY_ENV=${deployEnv}`)
+log(`LIBS_CHANGED=${libsChanged}`)
+if (changedFiles.length === 0) {
+  log('CHANGED_FILES: (none)')
+} else {
+  log(`CHANGED_FILES (${changedFiles.length}):`)
+  changedFiles.forEach((f) => log(' ', f))
+}
 
-    if (!Array.isArray(functions) || functions.length === 0) {
-      throw new Error(
-        `Workspace '${wsName}' artifact mapping for '${bundle}' must be a non-empty array.`,
-      )
-    }
-
-    for (const fn of functions) {
-      artifactTargets.push(`${bundle}:${fn}`)
-      lambdaFunctions.push(fn)
-    }
-  }
-
-  return { artifactTargets, lambdaFunctions }
+/**
+ * Resolve a bucket placeholder like "${S3_FORGE_CORE_STAGING}"
+ * to the actual value from process.env.
+ */
+function resolveBucket(value) {
+  return value.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? value)
 }
 
 /**
  * Determine which workspaces are affected by the current changeset.
- * - libs or deployment wiring changed → all workspaces
+ * - libs changed → all workspaces
  * - otherwise → workspaces whose apps/<name>/** files changed
+ * Returns [{ name, reason, matchedFile }]
  */
 function affectedWorkspaces() {
   const workspaces = deployJson.workspaces
 
-  if (libsChanged || deployConfigChanged) {
-    return Object.keys(workspaces)
+  if (libsChanged) {
+    return Object.keys(workspaces).map((name) => ({
+      name,
+      reason: 'libs changed → all workspaces rebuild',
+      matchedFile: null,
+    }))
   }
 
-  const affected = new Set()
+  const affected = []
   for (const [wsName, ws] of Object.entries(workspaces)) {
     for (const app of ws.apps) {
-      if (changedFiles.some((f) => f.startsWith(`apps/${app}/`))) {
-        affected.add(wsName)
+      const match = changedFiles.find((f) => f.startsWith(`apps/${app}/`))
+      if (match) {
+        affected.push({ name: wsName, reason: 'file match', matchedFile: match })
         break
       }
     }
   }
-  return [...affected]
+  return affected
 }
 
 const affected = affectedWorkspaces()
 
-const matrix = []
-
-for (const [client, envMap] of Object.entries(clientsJson)) {
-  const clientEnv = envMap[deployEnv]
-  if (!clientEnv) continue // client not active in this env
-
-  for (const wsName of affected) {
-    const ws = deployJson.workspaces[wsName]
-    const { artifactTargets, lambdaFunctions } = resolveArtifacts(wsName, ws, client)
-
-    matrix.push({
-      client,
-      workspace: wsName,
-      role_to_assume: clientEnv.role_to_assume,
-      s3_bucket: clientEnv.s3_bucket,
-      kms_key_id: clientEnv.kms_key_id,
-      region: clientEnv.region,
-      tfe_workspace: clientEnv.tfe_workspace,
-      apps: ws.apps,
-      artifact_targets: artifactTargets,
-      lambda_functions: lambdaFunctions,
-      lambda_key_prefix: ws.lambda_key_prefix,
-    })
-  }
+if (affected.length === 0) {
+  log('Affected workspaces: none — no matching files, nothing to deploy')
+} else {
+  log(`Affected workspaces (${affected.length}):`)
+  affected.forEach(({ name, reason, matchedFile }) => {
+    log(`  ${name}  reason: ${reason}${matchedFile ? `  matched: ${matchedFile}` : ''}`)
+  })
 }
 
-// Fail loudly if there were affected workspaces but no client is configured for this env.
-// An empty matrix here means the deploy job will silently skip — which is fine when nothing
-// changed, but dangerous when code changed and no clients are wired up yet.
-if (matrix.length === 0 && affected.length > 0) {
-  throw new Error(
-    `No clients configured for env '${deployEnv}' in .github/clients.json, ` +
-      `but ${affected.length} workspace(s) have changes: ${affected.join(', ')}. ` +
-      `Add a '${deployEnv}' entry per client to clients.json to enable deployment.`,
-  )
+const matrix = affected.map(({ name: wsName }) => {
+  const ws = deployJson.workspaces[wsName]
+  const env = ws[deployEnv]
+  if (!env) throw new Error(`No '${deployEnv}' entry in deploy.json for workspace '${wsName}'`)
+
+  return {
+    workspace: wsName,
+    apps: ws.apps,
+    lambda_key_prefix: ws.lambda_key_prefix,
+    tfe_workspace: env.tfe_workspace,
+    s3_bucket: resolveBucket(env.s3_bucket),
+  }
+})
+
+if (matrix.length === 0) {
+  log('Matrix: empty — no deploy jobs will run')
+} else {
+  log(`Matrix (${matrix.length} ${matrix.length === 1 ? 'entry' : 'entries'}):`)
+  matrix.forEach((entry, i) => {
+    log(
+      `  [${i}] workspace=${entry.workspace}` +
+        `  apps=${entry.apps.join(',')}` +
+        `  env=${deployEnv}` +
+        `  tfe=${entry.tfe_workspace}` +
+        `  bucket=${entry.s3_bucket}`,
+    )
+  })
 }
 
 process.stdout.write(JSON.stringify(matrix))

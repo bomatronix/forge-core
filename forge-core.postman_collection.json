@@ -664,6 +664,295 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Chat (Spec-05)",
+      "description": "Self-contained smoke flow for Spec-05 (POST /api/agents/:id/chat).\n\nMints a token, creates a disposable agent, tests chat endpoint, then cleans up.\n\nFor the live Anthropic test: set skipLiveTests=false in your environment and ensure ANTHROPIC_API_KEY is set in forge-core.",
+      "item": [
+        {
+          "name": "Mint chat token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_chat_smoke\",\n  \"email\": \"chat-smoke@mindrithm.ai\",\n  \"name\": \"Chat Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            },
+            "url": "{{authBaseUrl}}/auth/dev/token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create chat agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chat Smoke Agent\",\n  \"uiConfig\": {\n    \"identity\": { \"tone\": \"friendly\", \"welcomeMessage\": \"Hi! I am Chat Smoke Agent.\" },\n    \"behaviour\": { \"systemPrompt\": \"You are Chat Smoke Agent. Always mention your name in your first sentence.\" },\n    \"channels\": [\"Web\"]\n  }\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('chatAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — happy path",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello, what is your name?\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{chatAgentId}}/chat"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('content is non-empty string', () => {",
+                  "  pm.expect(j.content).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('usage.inputTokens present', () => {",
+                  "  pm.expect(j.usage && j.usage.inputTokens).to.be.a('number').and.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — 404 agent not found",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/unknown-agent-id/chat"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — 400 bad body",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": \"not-an-array\"\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{chatAgentId}}/chat"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — live Anthropic (skip in CI)",
+          "description": "Calls the real Anthropic API. Requires ANTHROPIC_API_KEY to be set in forge-core.\n\nSet skipLiveTests=false in your Postman environment to enable this request.\nSet skipLiveTests=true (or leave unset) to skip automatically — use this in CI/Newman runs.",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"What is your name?\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{chatAgentId}}/chat"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('skipLiveTests') === 'true' || !pm.environment.get('skipLiveTests')) {",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('content is non-empty string', () => {",
+                  "  pm.expect(j.content).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('response mentions agent name', () => {",
+                  "  pm.expect(j.content.toLowerCase()).to.include('chat smoke');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete chat agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{chatAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('chatAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
