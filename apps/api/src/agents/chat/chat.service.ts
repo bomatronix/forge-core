@@ -11,15 +11,9 @@ export interface ChatResponse {
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
-  private readonly anthropic: Anthropic;
+  private readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  constructor(private readonly agentsService: AgentsService) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
-    }
-    this.anthropic = new Anthropic({ apiKey });
-  }
+  constructor(private readonly agentsService: AgentsService) {}
 
   buildSystemPrompt(row: { name: string; uiConfig: unknown }): string {
     const ui = row.uiConfig as DraftAgent | null;
@@ -41,6 +35,10 @@ export class ChatService {
     agentId: string,
     messages: { role: 'user' | 'assistant'; content: string }[],
   ): Promise<ChatResponse> {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new BadGatewayException('ANTHROPIC_API_KEY is not configured on this server');
+    }
+
     const row = await this.agentsService.findOne(orgId, agentId);
     const system = this.buildSystemPrompt(row);
 
