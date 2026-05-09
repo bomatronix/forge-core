@@ -11,6 +11,7 @@ import {
   type DbClient,
 } from '@forge-core/core';
 import { AgentsModule } from './agents.module';
+import { ChatService } from './chat/chat.service';
 
 const ORG = 'org_e2e';
 const TOKEN = 'test-token';
@@ -93,6 +94,8 @@ describe('Agents API (e2e)', () => {
       .useValue(verifier)
       .overrideProvider(DRIZZLE_CLIENT)
       .useValue(createInMemoryDb(rows))
+      .overrideProvider(ChatService)
+      .useValue({ onModuleInit: jest.fn(), chat: jest.fn(), buildSystemPrompt: jest.fn() })
       .compile();
 
     app = moduleFixture.createNestApplication();

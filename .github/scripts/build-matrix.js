@@ -101,14 +101,15 @@ function buildArtifactTargets(artifactsMap) {
 }
 
 /**
- * Build lambda_functions array — flat list of all Lambda function names.
+ * Build lambda_functions array — unique list of all Lambda function names.
+ * Uses a Set to guard against duplicate names across bundles.
  */
 function buildLambdaFunctions(artifactsMap) {
-  const functions = []
+  const seen = new Set()
   for (const lambdas of Object.values(artifactsMap)) {
-    functions.push(...lambdas)
+    for (const fn of lambdas) seen.add(fn)
   }
-  return functions
+  return [...seen]
 }
 
 const affected = affectedWorkspaces()
@@ -127,7 +128,21 @@ const matrix = []
 for (const { name: wsName } of affected) {
   const ws = deployJson.workspaces[wsName]
 
-  for (const [clientName, clientData] of Object.entries(clientsJson)) {
+  if (!Array.isArray(ws.clients) || ws.clients.length === 0) {
+    throw new Error(
+      `Workspace '${wsName}' has no 'clients' list in deploy.json. ` +
+        `Add a 'clients' array listing the client names for this workspace.`,
+    )
+  }
+
+  for (const clientName of ws.clients) {
+    if (!clientsJson[clientName]) {
+      throw new Error(
+        `Workspace '${wsName}' lists client '${clientName}' but '${clientName}' has no entry in clients.json.`,
+      )
+    }
+
+    const clientData = clientsJson[clientName]
     const clientEnv = clientData[deployEnv]
     if (!clientEnv) {
       // Intentional skip: clients are only deployed to the environments they exist in.
@@ -141,7 +156,8 @@ for (const { name: wsName } of affected) {
     if (!artifactsMap || Object.keys(artifactsMap).length === 0) {
       throw new Error(
         `No artifacts configured for workspace '${wsName}' / client '${clientName}'. ` +
-          `Add an entry to 'artifacts' or 'client_artifacts.${clientName}' in deploy.json.`,
+          `Add a default mapping to 'artifacts' in deploy.json (applies to all clients), ` +
+          `or a client-specific mapping to 'client_artifacts.${clientName}' in deploy.json.`,
       )
     }
 
