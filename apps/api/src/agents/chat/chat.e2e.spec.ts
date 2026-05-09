@@ -122,6 +122,10 @@ function authFetch(baseUrl: string, path: string, init: RequestInit = {}) {
 }
 
 describe('Chat API (e2e)', () => {
+  beforeAll(() => {
+    process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? 'test-key-placeholder';
+  });
+
   describe('POST /api/agents/:id/chat', () => {
     it('200 — returns Claude response for a valid agent', async () => {
       const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
