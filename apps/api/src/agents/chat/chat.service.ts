@@ -11,9 +11,15 @@ export interface ChatResponse {
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
-  private readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  private readonly anthropic: Anthropic;
 
-  constructor(private readonly agentsService: AgentsService) {}
+  constructor(private readonly agentsService: AgentsService) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+    }
+    this.anthropic = new Anthropic({ apiKey });
+  }
 
   buildSystemPrompt(row: { name: string; uiConfig: unknown }): string {
     const ui = row.uiConfig as DraftAgent | null;
