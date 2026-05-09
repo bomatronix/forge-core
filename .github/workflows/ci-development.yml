@@ -120,10 +120,34 @@ jobs:
         run: |
           for i in $(seq 1 12); do
             status=$(curl -s -o /dev/null -w "%{http_code}" https://api.dev.mindrithm.ai/api/health)
-            if [ "$status" = "200" ]; then echo "API ready"; exit 0; fi
+            if [ "$status" != "000" ] && [ -n "$status" ]; then echo "API ready (got $status)"; exit 0; fi
             echo "Attempt $i: got $status, waiting 10s..."
             sleep 10
           done
           echo "API did not become ready in time" && exit 1
       - name: Run Newman smoke tests
         run: pnpm test:newman:dev
+      - name: Upload Newman report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-results
+          path: results/newman.xml
+          retention-days: 14
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## Newman Smoke Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          node -e "
+            const fs = require('fs');
+            if (!fs.existsSync('results/newman.xml')) { console.log('No results file found'); process.exit(0); }
+            const xml = fs.readFileSync('results/newman.xml', 'utf8');
+            const sum = tag => (xml.match(new RegExp(tag + '=\"(\\\\d+)\"', 'g')) || []).map(m => parseInt(m.match(/\d+/)[0])).reduce((a,b)=>a+b,0);
+            const tests = sum('tests'), failures = sum('failures'), errors = sum('errors');
+            const icon = failures + errors === 0 ? '✅' : '❌';
+            console.log(icon + ' ' + tests + ' assertions — ' + failures + ' failures, ' + errors + ' errors');
+          " >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** \`dev (api.dev.mindrithm.ai)\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Collection:** \`forge-core.postman_collection.json\`" >> $GITHUB_STEP_SUMMARY
