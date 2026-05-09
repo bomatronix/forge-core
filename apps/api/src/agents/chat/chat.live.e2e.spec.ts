@@ -117,4 +117,41 @@ describe('Chat API — live Anthropic integration', () => {
     },
     15_000, // 15s timeout for real API call
   );
+
+  itLive(
+    'streams real Claude response with delta events ending in done',
+    async () => {
+      const { app, baseUrl } = await buildApp();
+
+      const res = await fetch(`${baseUrl}/api/agents/${AGENT_ID}/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${TOKEN}`,
+        },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'What is your name?' }] }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+      const text = await res.text();
+      const events = text
+        .split('\n')
+        .filter((line) => line.startsWith('data: '))
+        .map((line) => JSON.parse(line.slice(6)) as { type: string; content?: string });
+
+      const deltas = events.filter((e) => e.type === 'delta');
+      const combined = deltas.map((e) => e.content ?? '').join('');
+
+      expect(deltas.length).toBeGreaterThan(0);
+      expect(combined.length).toBeGreaterThan(0);
+      // System prompt says "You are Aria" — Claude should mention the name
+      expect(combined.toLowerCase()).toContain('aria');
+      expect(events[events.length - 1]).toEqual({ type: 'done' });
+
+      await app.close();
+    },
+    20_000, // 20s timeout for streaming
+  );
 });

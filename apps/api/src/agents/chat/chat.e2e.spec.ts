@@ -20,6 +20,14 @@ jest.mock('@anthropic-ai/sdk', () => ({
         content: [{ type: 'text', text: 'I am Test Agent.' }],
         usage: { input_tokens: 10, output_tokens: 5 },
       }),
+      stream: jest.fn().mockImplementation(() => {
+        async function* gen() {
+          yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'I am ' } };
+          yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Test Agent.' } };
+          yield { type: 'message_start', message: {} }; // non-text event — should be skipped
+        }
+        return gen();
+      }),
     },
   })),
 }));
@@ -121,6 +129,14 @@ function authFetch(baseUrl: string, path: string, init: RequestInit = {}) {
   return fetch(`${baseUrl}${path}`, { ...init, headers });
 }
 
+async function collectSseEvents(res: Response): Promise<unknown[]> {
+  const text = await res.text();
+  return text
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => JSON.parse(line.slice(6)) as unknown);
+}
+
 describe('Chat API (e2e)', () => {
   beforeAll(() => {
     process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? 'test-key-placeholder';
@@ -176,6 +192,67 @@ describe('Chat API (e2e)', () => {
       const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
 
       const res = await authFetch(baseUrl, `/api/agents/${AGENT_ID}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: 'not-an-array' }),
+      });
+
+      expect(res.status).toBe(400);
+      await app.close();
+    });
+  });
+
+  describe('POST /api/agents/:id/chat/stream', () => {
+    it('200 — streams delta events and done for a valid agent', async () => {
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      const res = await authFetch(baseUrl, `/api/agents/${AGENT_ID}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+      const events = await collectSseEvents(res);
+      expect(events).toContainEqual({ type: 'delta', content: 'I am ' });
+      expect(events).toContainEqual({ type: 'delta', content: 'Test Agent.' });
+      expect(events[events.length - 1]).toEqual({ type: 'done' });
+
+      await app.close();
+    });
+
+    it('404 — agent not found', async () => {
+      const { app, baseUrl } = await buildApp(createEmptyDb());
+
+      const res = await authFetch(baseUrl, `/api/agents/unknown-id/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+      });
+
+      expect(res.status).toBe(404);
+      await app.close();
+    });
+
+    it('401 — missing auth token', async () => {
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      const res = await fetch(`${baseUrl}/api/agents/${AGENT_ID}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+      });
+
+      expect(res.status).toBe(401);
+      await app.close();
+    });
+
+    it('400 — invalid request body (messages not an array)', async () => {
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      const res = await authFetch(baseUrl, `/api/agents/${AGENT_ID}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: 'not-an-array' }),

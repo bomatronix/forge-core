@@ -32,7 +32,10 @@
     "db:logs": "docker logs -f forge-postgres",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "verify:dev": "node .github/scripts/verify-deployment.js dev"
+    "verify:dev": "node .github/scripts/verify-deployment.js dev",
+    "test:newman": "newman run forge-core.postman_collection.json -e forge-core.local.postman_environment.json --folder Health --folder \"Platform Token Flow\" --folder \"Agent CRUD + Status Smoke\" --folder \"Chat (Spec-05)\" --bail --timeout-request 30000",
+    "test:newman:dev": "newman run forge-core.postman_collection.json -e forge-core.dev.postman_environment.json --folder Health --folder \"Platform Token Flow\" --folder \"Agent CRUD + Status Smoke\" --folder \"Chat (Spec-05)\" --bail --timeout-request 30000",
+    "test:newman:live": "newman run forge-core.postman_collection.json -e forge-core.local.postman_environment.json --folder Health --folder \"Platform Token Flow\" --folder \"Agent CRUD + Status Smoke\" --folder \"Chat (Spec-05)\" --env-var skipLiveTests=false --bail --timeout-request 30000"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
@@ -70,6 +73,7 @@
     "esbuild": "^0.24.2",
     "eslint": "^9.39.4",
     "jest": "^29.7.0",
+    "newman": "^6.2.2",
     "prettier": "^3.8.1",
     "ts-jest": "^29.2.5",
     "turbo": "^2.3.0",

@@ -813,7 +813,7 @@
               "mode": "raw",
               "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello\" }\n  ]\n}"
             },
-            "url": "{{apiBaseUrl}}/api/agents/unknown-agent-id/chat"
+            "url": "{{apiBaseUrl}}/api/agents/00000000-0000-0000-0000-000000000000/chat"
           },
           "event": [
             {
@@ -860,6 +860,206 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat Stream — happy path",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello, what is your name?\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{chatAgentId}}/chat/stream"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('content-type is text/event-stream', () => {",
+                  "  pm.expect(pm.response.headers.get('content-type')).to.include('text/event-stream');",
+                  "});",
+                  "const text = pm.response.text();",
+                  "const events = text.split('\\n')",
+                  "  .filter(line => line.startsWith('data: '))",
+                  "  .map(line => { try { return JSON.parse(line.slice(6)); } catch(e) { return null; } })",
+                  "  .filter(Boolean);",
+                  "pm.test('has at least one delta event', () => {",
+                  "  pm.expect(events.some(e => e.type === 'delta')).to.eql(true);",
+                  "});",
+                  "pm.test('last event is done', () => {",
+                  "  pm.expect(events[events.length - 1]).to.eql({ type: 'done' });",
+                  "});",
+                  "const firstDelta = events.find(e => e.type === 'delta');",
+                  "if (firstDelta) pm.environment.set('streamFirstChunk', firstDelta.content);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat Stream — 404 agent not found",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/00000000-0000-0000-0000-000000000000/chat/stream"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat Stream — 400 bad body",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": \"not-an-array\"\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{chatAgentId}}/chat/stream"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat Stream — live Anthropic (skip in CI)",
+          "description": "Streams a real Anthropic response. Requires ANTHROPIC_API_KEY to be set in forge-core.\n\nSet skipLiveTests=false in your Postman environment to enable this request.\nSet skipLiveTests=true (or leave unset) to skip automatically — use this in CI/Newman runs.",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"What is your name?\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{chatAgentId}}/chat/stream"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('skipLiveTests') === 'true' || !pm.environment.get('skipLiveTests')) {",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('content-type is text/event-stream', () => {",
+                  "  pm.expect(pm.response.headers.get('content-type')).to.include('text/event-stream');",
+                  "});",
+                  "const text = pm.response.text();",
+                  "const events = text.split('\\n')",
+                  "  .filter(line => line.startsWith('data: '))",
+                  "  .map(line => { try { return JSON.parse(line.slice(6)); } catch(e) { return null; } })",
+                  "  .filter(Boolean);",
+                  "const deltas = events.filter(e => e.type === 'delta');",
+                  "const combined = deltas.map(e => e.content || '').join('');",
+                  "pm.test('has delta events with content', () => {",
+                  "  pm.expect(deltas.length).to.be.greaterThan(0);",
+                  "  pm.expect(combined.length).to.be.greaterThan(0);",
+                  "});",
+                  "pm.test('response mentions agent name', () => {",
+                  "  pm.expect(combined.toLowerCase()).to.include('chat smoke');",
+                  "});",
+                  "pm.test('last event is done', () => {",
+                  "  pm.expect(events[events.length - 1]).to.eql({ type: 'done' });",
+                  "});"
                 ]
               }
             }

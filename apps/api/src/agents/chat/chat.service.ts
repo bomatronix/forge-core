@@ -65,6 +65,53 @@ export class ChatService implements OnModuleInit {
     return parts.join('\n');
   }
 
+  async streamChat(
+    orgId: string,
+    agentId: string,
+    messages: { role: 'user' | 'assistant'; content: string }[],
+  ): Promise<AsyncIterable<{ type: 'delta'; content: string } | { type: 'done' }>> {
+    // Validate agent eagerly so callers can handle 404 before committing to a streaming response
+    const row = await this.agentsService.findOne(orgId, agentId);
+    const system = this.buildSystemPrompt(row);
+    const anthropic = this.anthropic;
+    const logger = this.logger;
+
+    this.logger.log(
+      `[streamChat] org=${orgId} agent=${agentId} name="${row.name}" messages=${messages.length} → Anthropic`,
+    );
+
+    async function* gen(): AsyncGenerator<{ type: 'delta'; content: string } | { type: 'done' }> {
+      try {
+        const stream = anthropic.messages.stream({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1024,
+          system,
+          messages,
+        });
+
+        for await (const event of stream) {
+          if (
+            event.type === 'content_block_delta' &&
+            event.delta.type === 'text_delta'
+          ) {
+            yield { type: 'delta', content: event.delta.text };
+          }
+        }
+
+        yield { type: 'done' };
+      } catch (err) {
+        logger.error(
+          `[streamChat] agent=${agentId} ← Anthropic error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw new BadGatewayException(
+          `Anthropic API error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    return gen();
+  }
+
   async chat(
     orgId: string,
     agentId: string,
