@@ -33,11 +33,21 @@ export class ChatService implements OnModuleInit {
   private async resolveSecret(arn: string): Promise<string> {
     const client = new SecretsManagerClient({});
     const result = await client.send(new GetSecretValueCommand({ SecretId: arn }));
-    const value = result.SecretString;
-    if (!value) {
+    const raw = result.SecretString;
+    if (!raw) {
       throw new Error(`Secret ${arn} has no string value`);
     }
-    return value;
+    // Secrets Manager supports both plain strings and JSON objects.
+    // If stored as JSON (e.g. {"ANTHROPIC_API_KEY": "sk-ant-..."}), extract
+    // the first value; otherwise use the raw string directly.
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const first = Object.values(parsed)[0];
+      if (typeof first === 'string') return first.trim();
+    } catch {
+      // not JSON — use raw
+    }
+    return raw.trim();
   }
 
   buildSystemPrompt(row: { name: string; uiConfig: unknown }): string {
