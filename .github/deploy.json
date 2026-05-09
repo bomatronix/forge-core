@@ -3,6 +3,8 @@
   "workspaces": {
     "forge-core": {
       "apps": ["api", "authorizer", "auth-handler", "migrate"],
+      "_comment_clients": "Exhaustive list of clients that use this workspace. build-matrix.js validates against this list — clients not listed here are never deployed from this workspace, even if they exist in clients.json.",
+      "clients": ["test-client", "mindrithm"],
       "_comment_artifacts": "Default bundle→Lambda mapping used by any client without a client_artifacts override. 'migrate' is intentionally absent — only clients with a deployed migrator Lambda should map it; add via client_artifacts instead.",
       "artifacts": {
         "api": ["crud", "presign"],

@@ -1,5 +1,9 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from '@aws-sdk/client-secrets-manager';
 import type { DraftAgent } from '@forge-core/common';
 import { AgentsService } from '../agents.service';
 
@@ -9,11 +13,32 @@ export interface ChatResponse {
 }
 
 @Injectable()
-export class ChatService {
+export class ChatService implements OnModuleInit {
   private readonly logger = new Logger(ChatService.name);
-  private readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  private anthropic!: Anthropic;
 
   constructor(private readonly agentsService: AgentsService) {}
+
+  async onModuleInit(): Promise<void> {
+    const rawKey = process.env.ANTHROPIC_API_KEY;
+    if (!rawKey) {
+      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+    }
+    const apiKey = rawKey.startsWith('arn:aws:secretsmanager:')
+      ? await this.resolveSecret(rawKey)
+      : rawKey;
+    this.anthropic = new Anthropic({ apiKey });
+  }
+
+  private async resolveSecret(arn: string): Promise<string> {
+    const client = new SecretsManagerClient({});
+    const result = await client.send(new GetSecretValueCommand({ SecretId: arn }));
+    const value = result.SecretString;
+    if (!value) {
+      throw new Error(`Secret ${arn} has no string value`);
+    }
+    return value;
+  }
 
   buildSystemPrompt(row: { name: string; uiConfig: unknown }): string {
     const ui = row.uiConfig as DraftAgent | null;
@@ -35,10 +60,6 @@ export class ChatService {
     agentId: string,
     messages: { role: 'user' | 'assistant'; content: string }[],
   ): Promise<ChatResponse> {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new BadGatewayException('ANTHROPIC_API_KEY is not configured on this server');
-    }
-
     const row = await this.agentsService.findOne(orgId, agentId);
     const system = this.buildSystemPrompt(row);
 
