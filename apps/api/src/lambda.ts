@@ -20,6 +20,8 @@ async function bootstrap(): Promise<Handler> {
     credentials: true,
   });
 
+  // Trust the last proxy hop (ALB/API Gateway) so req.ip reflects the real client IP.
+  expressApp.set('trust proxy', 1);
   app.setGlobalPrefix('api');
 
   await app.init();

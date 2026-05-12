@@ -64,7 +64,7 @@ const testAgent: AgentRow = {
     channels: ['Web'],
   },
   aiConfig: null,
-  shareToken: null,
+  shareToken: 'share_e2e_token',
   createdAt: new Date(),
   updatedAt: new Date(),
   deletedAt: null,
@@ -259,6 +259,71 @@ describe('Chat API (e2e)', () => {
       });
 
       expect(res.status).toBe(400);
+      await app.close();
+    });
+  });
+
+  describe('public chat endpoints', () => {
+    it('200 — returns public metadata for a live agent with a valid share token', async () => {
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      const res = await fetch(
+        `${baseUrl}/api/public/agents/${AGENT_ID}?token=share_e2e_token`,
+      );
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        id: AGENT_ID,
+        name: 'Test Agent',
+        welcomeMessage: 'Hello!',
+        status: 'live',
+      });
+
+      await app.close();
+    });
+
+    it('404 — rejects public metadata without a share token', async () => {
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      const res = await fetch(`${baseUrl}/api/public/agents/${AGENT_ID}`);
+
+      expect(res.status).toBe(404);
+      await app.close();
+    });
+
+    it('200 — streams public chat with a valid share token and no bearer token', async () => {
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      const res = await fetch(
+        `${baseUrl}/api/public/agents/${AGENT_ID}/chat/stream?token=share_e2e_token`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+        },
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+      const events = await collectSseEvents(res);
+      expect(events).toContainEqual({ type: 'delta', content: 'I am ' });
+      expect(events).toContainEqual({ type: 'delta', content: 'Test Agent.' });
+      expect(events[events.length - 1]).toEqual({ type: 'done' });
+
+      await app.close();
+    });
+
+    it('404 — rejects raw unauthenticated public stream requests without a share token', async () => {
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      const res = await fetch(`${baseUrl}/api/public/agents/${AGENT_ID}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+      });
+
+      expect(res.status).toBe(404);
       await app.close();
     });
   });

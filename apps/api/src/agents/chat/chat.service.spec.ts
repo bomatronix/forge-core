@@ -73,11 +73,14 @@ const testAgent = {
 
 describe('ChatService', () => {
   let service: ChatService;
-  let mockAgentsService: { findOne: jest.Mock };
+  let mockAgentsService: { findOne: jest.Mock; findPublicLive: jest.Mock };
 
   beforeEach(async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key-unit';
-    mockAgentsService = { findOne: jest.fn().mockResolvedValue(testAgent) };
+    mockAgentsService = {
+      findOne: jest.fn().mockResolvedValue(testAgent),
+      findPublicLive: jest.fn().mockResolvedValue({ ...testAgent, shareToken: 'share_abc' }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -209,6 +212,44 @@ describe('ChatService', () => {
       // findOne is called eagerly inside streamChat (before returning the iterable)
       await expect(
         service.streamChat('org_unit', 'missing-agent', messages),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('streamPublicChat', () => {
+    const messages = [{ role: 'user' as const, content: 'Hi' }];
+
+    it('uses the public live lookup before streaming', async () => {
+      mockStream.mockImplementation(() => makeStreamGen(['Hello']));
+
+      await collectAll(await service.streamPublicChat('agent-unit-test', 'share_abc', messages));
+
+      expect(mockAgentsService.findPublicLive).toHaveBeenCalledWith(
+        'agent-unit-test',
+        'share_abc',
+      );
+    });
+
+    it('yields delta events for public chat streams', async () => {
+      mockStream.mockImplementation(() => makeStreamGen(['Public ', 'Hello']));
+
+      const events = await collectAll(
+        await service.streamPublicChat('agent-unit-test', 'share_abc', messages),
+      );
+
+      expect(events).toContainEqual({ type: 'delta', content: 'Public ' });
+      expect(events).toContainEqual({ type: 'delta', content: 'Hello' });
+      expect(events[events.length - 1]).toEqual({ type: 'done' });
+    });
+
+    it('throws NotFoundException from AgentsService when the public token is invalid', async () => {
+      const { NotFoundException } = await import('@nestjs/common');
+      mockAgentsService.findPublicLive.mockRejectedValue(
+        new NotFoundException('Agent not available'),
+      );
+
+      await expect(
+        service.streamPublicChat('agent-unit-test', 'bad-token', messages),
       ).rejects.toThrow(NotFoundException);
     });
   });

@@ -12,6 +12,10 @@ export interface ChatResponse {
   usage: { inputTokens: number; outputTokens: number };
 }
 
+type ChatMessage = { role: 'user' | 'assistant'; content: string };
+type AgentPromptRow = { id: string; orgId?: string | null; name: string; uiConfig: unknown };
+type StreamEvent = { type: 'delta'; content: string } | { type: 'done' };
+
 @Injectable()
 export class ChatService implements OnModuleInit {
   private readonly logger = new Logger(ChatService.name);
@@ -68,19 +72,36 @@ export class ChatService implements OnModuleInit {
   async streamChat(
     orgId: string,
     agentId: string,
-    messages: { role: 'user' | 'assistant'; content: string }[],
-  ): Promise<AsyncIterable<{ type: 'delta'; content: string } | { type: 'done' }>> {
+    messages: ChatMessage[],
+  ): Promise<AsyncIterable<StreamEvent>> {
     // Validate agent eagerly so callers can handle 404 before committing to a streaming response
     const row = await this.agentsService.findOne(orgId, agentId);
+    return this.streamWithAgent(row, messages, `org=${orgId}`);
+  }
+
+  async streamPublicChat(
+    agentId: string,
+    shareToken: string,
+    messages: ChatMessage[],
+  ): Promise<AsyncIterable<StreamEvent>> {
+    const row = await this.agentsService.findPublicLive(agentId, shareToken);
+    return this.streamWithAgent(row, messages, 'public=true');
+  }
+
+  private streamWithAgent(
+    row: AgentPromptRow,
+    messages: ChatMessage[],
+    logContext: string,
+  ): AsyncIterable<StreamEvent> {
     const system = this.buildSystemPrompt(row);
     const anthropic = this.anthropic;
     const logger = this.logger;
 
     this.logger.log(
-      `[streamChat] org=${orgId} agent=${agentId} name="${row.name}" messages=${messages.length} → Anthropic`,
+      `[streamChat] ${logContext} agent=${row.id} name="${row.name}" messages=${messages.length} → Anthropic`,
     );
 
-    async function* gen(): AsyncGenerator<{ type: 'delta'; content: string } | { type: 'done' }> {
+    async function* gen(): AsyncGenerator<StreamEvent> {
       try {
         const stream = anthropic.messages.stream({
           model: 'claude-sonnet-4-6',
@@ -101,7 +122,7 @@ export class ChatService implements OnModuleInit {
         yield { type: 'done' };
       } catch (err) {
         logger.error(
-          `[streamChat] agent=${agentId} ← Anthropic error: ${err instanceof Error ? err.message : String(err)}`,
+          `[streamChat] agent=${row.id} ← Anthropic error: ${err instanceof Error ? err.message : String(err)}`,
         );
         throw new BadGatewayException('Upstream API error');
       }
@@ -113,7 +134,7 @@ export class ChatService implements OnModuleInit {
   async chat(
     orgId: string,
     agentId: string,
-    messages: { role: 'user' | 'assistant'; content: string }[],
+    messages: ChatMessage[],
   ): Promise<ChatResponse> {
     const row = await this.agentsService.findOne(orgId, agentId);
     const system = this.buildSystemPrompt(row);

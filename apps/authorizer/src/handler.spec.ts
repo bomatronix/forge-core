@@ -61,6 +61,29 @@ describe('Lambda Authorizer handler', () => {
     expect(result.principalId).toBe('anonymous');
   });
 
+  it('allows public agent metadata through the authorizer without a bearer token', async () => {
+    const result = await handler(mockEvent('', '/api/public/agents/agent_123', 'GET'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
+  it('allows public agent streams through the authorizer without a bearer token', async () => {
+    const result = await handler(
+      mockEvent('', '/api/public/agents/agent_123/chat/stream', 'POST'),
+    );
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
+  it('does not treat nearby public agent paths as authorizer-public', async () => {
+    const result = await handler(mockEvent('', '/api/public/agents/agent_123/chat', 'POST'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
+    expect(result.principalId).toBe('unauthorized');
+  });
+
   it('returns Allow policy with normalized user context for a valid platform access token', async () => {
     const token = buildUserToken();
 
