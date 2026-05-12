@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { eq, and, isNull } from 'drizzle-orm';
+import { randomBytes } from 'crypto';
 import { DRIZZLE_CLIENT, DbClient, schema } from '@forge-core/core';
 import type { Agent, AgentStatus } from '@forge-core/common';
 import type { CreateAgentDto } from '@forge-core/common';
@@ -15,6 +16,10 @@ const allowedStatusTransitions: Record<AgentStatus, AgentStatus[]> = {
 @Injectable()
 export class AgentsService {
   constructor(@Inject(DRIZZLE_CLIENT) private db: DbClient) {}
+
+  private generateShareToken(): string {
+    return randomBytes(32).toString('base64url');
+  }
 
   async list(orgId: string): Promise<Agent[]> {
     const rows = await this.db
@@ -47,6 +52,26 @@ export class AgentsService {
       );
 
     if (!row) throw new NotFoundException(`Agent ${id} not found`);
+    return row;
+  }
+
+  async findPublicLive(id: string, shareToken: string) {
+    const token = shareToken.trim();
+    if (!token) throw new NotFoundException('Agent not available');
+
+    const [row] = await this.db
+      .select()
+      .from(schema.agents)
+      .where(
+        and(
+          eq(schema.agents.id, id),
+          eq(schema.agents.shareToken, token),
+          eq(schema.agents.status, 'live'),
+          isNull(schema.agents.deletedAt),
+        ),
+      );
+
+    if (!row) throw new NotFoundException('Agent not available');
     return row;
   }
 
@@ -97,6 +122,9 @@ export class AgentsService {
       .update(schema.agents)
       .set({
         status: dto.status,
+        ...(dto.status === 'live' && !agent.shareToken
+          ? { shareToken: this.generateShareToken() }
+          : {}),
         updatedAt: new Date(),
       })
       .where(

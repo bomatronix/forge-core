@@ -12,6 +12,7 @@ export interface Agent {
   resolution: number | null;
   csat: number | null;
   status: AgentStatus;
+  shareToken?: string | null;
 }
 
 export interface DraftAgent {

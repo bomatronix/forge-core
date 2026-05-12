@@ -54,12 +54,16 @@ async function getAdapter(): Promise<AuthTokenVerifier> {
   return adapter;
 }
 
-// Paths that are allowed without a Bearer token.
-// Keep this list minimal and hardcoded — never driven by config.
-const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/api/health']);
+// Paths that are allowed through the Lambda authorizer without a Bearer token.
+// Keep this list minimal and hardcoded — Nest still applies endpoint-level checks.
+const PUBLIC_AGENT_PATH = /^\/api\/public\/agents\/[^/]+$/;
+const PUBLIC_AGENT_STREAM_PATH = /^\/api\/public\/agents\/[^/]+\/chat\/stream$/;
 
 function isPublicRequest(path: string, method: string): boolean {
-  return method === 'GET' && PUBLIC_PATHS.has(path);
+  if (method === 'GET' && path === '/api/health') return true;
+  if (method === 'GET' && PUBLIC_AGENT_PATH.test(path)) return true;
+  if (method === 'POST' && PUBLIC_AGENT_STREAM_PATH.test(path)) return true;
+  return false;
 }
 
 export const handler = async (

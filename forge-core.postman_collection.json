@@ -2,7 +2,7 @@
   "info": {
     "name": "Forge Core",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "All endpoints for Forge Core. Use the Local environment to smoke-test against local real Postgres via the local API, or the Mindrithm Dev (AWS) environment to smoke-test the deployed API.\n\nRecommended smoke path: run the Health folder, then Agent CRUD + Status Smoke."
+    "description": "All endpoints for Forge Core. Use the Local environment to smoke-test against local real Postgres via the local API, or the Mindrithm Dev (AWS) environment to smoke-test the deployed API.\n\nRecommended smoke path: run the Health folder, then Agent CRUD + Status Smoke, Chat (Spec-05), and Public Chat (Spec-08)."
   },
   "item": [
     {
@@ -1147,6 +1147,356 @@
                 "exec": [
                   "pm.test('200', () => pm.response.to.have.status(200));",
                   "pm.environment.unset('chatAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Public Chat (Spec-08)",
+      "description": "Smoke flow for token-gated public chat links. Creates and publishes a live agent, captures shareToken, verifies no-token access is rejected, verifies tokened metadata and SSE stream, pauses to close public access, then deletes the agent.",
+      "item": [
+        {
+          "name": "Mint public chat token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_public_chat_smoke\",\n  \"email\": \"public-chat-smoke@mindrithm.ai\",\n  \"name\": \"Public Chat Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            },
+            "url": "{{authBaseUrl}}/auth/dev/token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create public chat agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{publicChatAgentName}}\",\n  \"uiConfig\": {\n    \"identity\": { \"tone\": \"friendly\", \"welcomeMessage\": \"Hi! I am Public Chat Smoke Agent.\" },\n    \"behaviour\": { \"systemPrompt\": \"You are Public Chat Smoke Agent. Always mention your name in your first sentence.\" },\n    \"channels\": [\"Web\"]\n  }\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.test('created as draft', () => pm.expect(j.status).to.eql('draft'));",
+                  "pm.environment.set('publicChatAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish public chat agent — captures share token",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"live\"\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{publicChatAgentId}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('status live', () => pm.expect(j.status).to.eql('live'));",
+                  "pm.test('shareToken returned', () => pm.expect(j.shareToken).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('publicChatShareToken', j.shareToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public metadata — missing token rejected",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/public/agents/{{publicChatAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public metadata — valid token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/public/agents/{{publicChatAgentId}}?token={{publicChatShareToken}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('id matches', () => pm.expect(j.id).to.eql(pm.environment.get('publicChatAgentId')));",
+                  "pm.test('name matches', () => pm.expect(j.name).to.eql(pm.environment.get('publicChatAgentName')));",
+                  "pm.test('status live', () => pm.expect(j.status).to.eql('live'));",
+                  "pm.test('welcomeMessage returned', () => pm.expect(j.welcomeMessage).to.eql('Hi! I am Public Chat Smoke Agent.'));",
+                  "pm.test('sensitive fields omitted', () => {",
+                  "  pm.expect(j).not.to.have.property('orgId');",
+                  "  pm.expect(j).not.to.have.property('uiConfig');",
+                  "  pm.expect(j).not.to.have.property('aiConfig');",
+                  "  pm.expect(j).not.to.have.property('shareToken');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public stream — missing token rejected",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/public/agents/{{publicChatAgentId}}/chat/stream"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public stream — valid token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello, what is your name?\" }\n  ]\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/public/agents/{{publicChatAgentId}}/chat/stream?token={{publicChatShareToken}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('content-type is text/event-stream', () => {",
+                  "  pm.expect(pm.response.headers.get('content-type')).to.include('text/event-stream');",
+                  "});",
+                  "const text = pm.response.text();",
+                  "const events = text.split('\\n')",
+                  "  .filter(line => line.startsWith('data: '))",
+                  "  .map(line => { try { return JSON.parse(line.slice(6)); } catch(e) { return null; } })",
+                  "  .filter(Boolean);",
+                  "const deltas = events.filter(e => e.type === 'delta');",
+                  "const combined = deltas.map(e => e.content || '').join('');",
+                  "pm.test('has delta events with content', () => {",
+                  "  pm.expect(deltas.length).to.be.greaterThan(0);",
+                  "  pm.expect(combined.length).to.be.greaterThan(0);",
+                  "});",
+                  "pm.test('last event is done', () => {",
+                  "  pm.expect(events[events.length - 1]).to.eql({ type: 'done' });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pause public chat agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paused\"\n}"
+            },
+            "url": "{{apiBaseUrl}}/api/agents/{{publicChatAgentId}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('status paused', () => pm.expect(pm.response.json().status).to.eql('paused'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public metadata — paused agent unavailable",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/public/agents/{{publicChatAgentId}}?token={{publicChatShareToken}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete public chat agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{publicChatAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('publicChatAgentId');",
+                  "pm.environment.unset('publicChatShareToken');"
                 ]
               }
             }

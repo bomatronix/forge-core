@@ -113,6 +113,31 @@ describe('AgentsService', () => {
     });
   });
 
+  describe('findPublicLive()', () => {
+    it('returns a live agent matching the share token', async () => {
+      const row = agentRow({ status: 'live', shareToken: 'share_abc' });
+      db.selectWhere.mockResolvedValue([row]);
+
+      await expect(service.findPublicLive(AGENT_ID, 'share_abc')).resolves.toEqual(row);
+      expect(db.selectWhere).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws and skips the database when the share token is missing', async () => {
+      await expect(service.findPublicLive(AGENT_ID, '')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('throws when no live agent matches the id and share token', async () => {
+      db.selectWhere.mockResolvedValue([]);
+
+      await expect(service.findPublicLive(AGENT_ID, 'wrong-token')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('create()', () => {
     it('inserts a tenant-scoped draft-compatible agent row', async () => {
       const row = agentRow({ name: 'Created Agent', templateId: 'template_1' });
@@ -196,6 +221,38 @@ describe('AgentsService', () => {
 
       // UPDATE was attempted (transition was valid) but returned no rows
       expect(db.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('generates a share token when publishing an agent without one', async () => {
+      db.selectWhere.mockResolvedValue([agentRow({ status: 'draft', shareToken: null })]);
+      db.updateReturning.mockResolvedValue([agentRow({ status: 'live', shareToken: 'generated' })]);
+
+      await service.updateStatus(ORG, AGENT_ID, { status: 'live' });
+
+      expect(db.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'live',
+          shareToken: expect.any(String),
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it('preserves the existing share token when resuming a paused agent', async () => {
+      db.selectWhere.mockResolvedValue([
+        agentRow({ status: 'paused', shareToken: 'existing-token' }),
+      ]);
+      db.updateReturning.mockResolvedValue([
+        agentRow({ status: 'live', shareToken: 'existing-token' }),
+      ]);
+
+      await service.updateStatus(ORG, AGENT_ID, { status: 'live' });
+
+      expect(db.updateSet).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          shareToken: expect.any(String),
+        }),
+      );
     });
   });
 
