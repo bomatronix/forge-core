@@ -4,19 +4,26 @@ import { handler } from './handler';
 
 const runtime = getAuthHandlerRuntimeConfig();
 
-const mockEvent = (token: string, path = '/api/auth/me', method = 'GET'): APIGatewayRequestAuthorizerEvent => ({
+const mockEvent = (
+  token: string,
+  path = '/api/auth/me',
+  method = 'GET',
+  authorizerMethod = method,
+): APIGatewayRequestAuthorizerEvent => ({
   type: 'REQUEST',
   methodArn: `arn:aws:execute-api:us-east-1:123456789:abc123/prod/${method}${path}`,
   resource: path,
   path,
-  httpMethod: method,
+  httpMethod: authorizerMethod,
   headers: token ? { Authorization: `Bearer ${token}` } : {},
   multiValueHeaders: {},
   pathParameters: null,
   queryStringParameters: null,
   multiValueQueryStringParameters: null,
   stageVariables: null,
-  requestContext: {} as APIGatewayRequestAuthorizerEvent['requestContext'],
+  requestContext: {
+    httpMethod: method,
+  } as APIGatewayRequestAuthorizerEvent['requestContext'],
 });
 
 const buildUserToken = (
@@ -82,6 +89,15 @@ describe('Lambda Authorizer handler', () => {
     expect(result.principalId).toBe('anonymous');
   });
 
+  it('uses the real request method for API Gateway ANY proxy routes', async () => {
+    const result = await handler(
+      mockEvent('', '/api/public/agents/agent_123', 'GET', 'ANY'),
+    );
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
   it('allows public agent streams through the authorizer without a bearer token', async () => {
     const result = await handler(
       mockEvent('', '/api/public/agents/agent_123/chat/stream', 'POST'),
@@ -100,6 +116,15 @@ describe('Lambda Authorizer handler', () => {
     expect(result.principalId).toBe('anonymous');
   });
 
+  it('allows public agent streams for API Gateway ANY proxy routes', async () => {
+    const result = await handler(
+      mockEvent('', '/api/public/agents/agent_123/chat/stream', 'POST', 'ANY'),
+    );
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
   it('does not treat nearby public agent paths as authorizer-public', async () => {
     const result = await handler(mockEvent('', '/api/public/agents/agent_123/chat', 'POST'));
 
@@ -109,6 +134,15 @@ describe('Lambda Authorizer handler', () => {
 
   it('does not treat nearby stage-prefixed public agent paths as authorizer-public', async () => {
     const result = await handler(mockEvent('', '/v1/api/public/agents/agent_123/chat', 'POST'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
+    expect(result.principalId).toBe('unauthorized');
+  });
+
+  it('does not treat nearby public agent paths as authorizer-public for API Gateway ANY proxy routes', async () => {
+    const result = await handler(
+      mockEvent('', '/api/public/agents/agent_123/chat', 'POST', 'ANY'),
+    );
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
     expect(result.principalId).toBe('unauthorized');

@@ -72,10 +72,14 @@ function isPublicRequest(path: string, method: string): boolean {
   return false;
 }
 
+function requestMethod(event: APIGatewayRequestAuthorizerEvent): string {
+  return event.requestContext?.httpMethod ?? event.httpMethod;
+}
+
 export const handler = async (
   event: APIGatewayRequestAuthorizerEvent,
 ): Promise<APIGatewayAuthorizerResult> => {
-  if (isPublicRequest(event.path, event.httpMethod)) {
+  if (isPublicRequest(event.path, requestMethod(event))) {
     return publicAllowPolicy(event.methodArn);
   }
 
