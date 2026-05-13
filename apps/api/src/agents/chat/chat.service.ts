@@ -6,6 +6,10 @@ import {
 } from '@aws-sdk/client-secrets-manager';
 import type { DraftAgent } from '@forge-core/common';
 import { AgentsService } from '../agents.service';
+import {
+  AgentUsageEventsService,
+  type AgentUsageSource,
+} from '../agent-usage-events.service';
 
 export interface ChatResponse {
   content: string;
@@ -13,7 +17,7 @@ export interface ChatResponse {
 }
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
-type AgentPromptRow = { id: string; orgId?: string | null; name: string; uiConfig: unknown };
+type AgentPromptRow = { id: string; orgId: string; name: string; uiConfig: unknown };
 type StreamEvent = { type: 'delta'; content: string } | { type: 'done' };
 
 @Injectable()
@@ -21,7 +25,10 @@ export class ChatService implements OnModuleInit {
   private readonly logger = new Logger(ChatService.name);
   private anthropic!: Anthropic;
 
-  constructor(private readonly agentsService: AgentsService) {}
+  constructor(
+    private readonly agentsService: AgentsService,
+    private readonly usageEventsService: AgentUsageEventsService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const rawKey = process.env.ANTHROPIC_API_KEY;
@@ -76,7 +83,7 @@ export class ChatService implements OnModuleInit {
   ): Promise<AsyncIterable<StreamEvent>> {
     // Validate agent eagerly so callers can handle 404 before committing to a streaming response
     const row = await this.agentsService.findOne(orgId, agentId);
-    return this.streamWithAgent(row, messages, `org=${orgId}`);
+    return this.streamWithAgent(row, messages, `org=${orgId}`, 'builder_test');
   }
 
   async streamPublicChat(
@@ -85,17 +92,37 @@ export class ChatService implements OnModuleInit {
     messages: ChatMessage[],
   ): Promise<AsyncIterable<StreamEvent>> {
     const row = await this.agentsService.findPublicLive(agentId, shareToken);
-    return this.streamWithAgent(row, messages, 'public=true');
+    return this.streamWithAgent(row, messages, 'public=true', 'public');
+  }
+
+  private async recordChatUsage(
+    row: AgentPromptRow,
+    source: AgentUsageSource,
+    usage?: { inputTokens?: number; outputTokens?: number },
+  ): Promise<void> {
+    try {
+      await this.usageEventsService.recordChatMessage({
+        orgId: row.orgId,
+        agentId: row.id,
+        source,
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+      });
+    } catch (err) {
+      this.usageEventsService.logRecordFailure(row.id, err);
+    }
   }
 
   private streamWithAgent(
     row: AgentPromptRow,
     messages: ChatMessage[],
     logContext: string,
+    source: AgentUsageSource,
   ): AsyncIterable<StreamEvent> {
     const system = this.buildSystemPrompt(row);
     const anthropic = this.anthropic;
     const logger = this.logger;
+    const recordChatUsage = this.recordChatUsage.bind(this);
 
     this.logger.log(
       `[streamChat] ${logContext} agent=${row.id} name="${row.name}" messages=${messages.length} → Anthropic`,
@@ -119,6 +146,7 @@ export class ChatService implements OnModuleInit {
           }
         }
 
+        await recordChatUsage(row, source);
         yield { type: 'done' };
       } catch (err) {
         logger.error(
@@ -159,6 +187,11 @@ export class ChatService implements OnModuleInit {
       this.logger.log(
         `[chat] agent=${agentId} ← Anthropic ok in=${response.usage.input_tokens} out=${response.usage.output_tokens}`,
       );
+
+      await this.recordChatUsage(row, 'builder_test', {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
 
       return {
         content,

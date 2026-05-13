@@ -4,9 +4,10 @@ import { AgentsService } from './agents.service';
 import { ChatController } from './chat/chat.controller';
 import { PublicChatController } from './chat/public-chat.controller';
 import { ChatService } from './chat/chat.service';
+import { AgentUsageEventsService } from './agent-usage-events.service';
 
 @Module({
   controllers: [AgentsController, ChatController, PublicChatController],
-  providers: [AgentsService, ChatService],
+  providers: [AgentsService, ChatService, AgentUsageEventsService],
 })
 export class AgentsModule {}

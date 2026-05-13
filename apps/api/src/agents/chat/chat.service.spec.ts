@@ -2,6 +2,7 @@ import { BadGatewayException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChatService } from './chat.service';
 import { AgentsService } from '../agents.service';
+import { AgentUsageEventsService } from '../agent-usage-events.service';
 
 // ---------------------------------------------------------------------------
 // Anthropic SDK mock
@@ -74,6 +75,7 @@ const testAgent = {
 describe('ChatService', () => {
   let service: ChatService;
   let mockAgentsService: { findOne: jest.Mock; findPublicLive: jest.Mock };
+  let mockUsageEventsService: { recordChatMessage: jest.Mock; logRecordFailure: jest.Mock };
 
   beforeEach(async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key-unit';
@@ -81,11 +83,16 @@ describe('ChatService', () => {
       findOne: jest.fn().mockResolvedValue(testAgent),
       findPublicLive: jest.fn().mockResolvedValue({ ...testAgent, shareToken: 'share_abc' }),
     };
+    mockUsageEventsService = {
+      recordChatMessage: jest.fn().mockResolvedValue(undefined),
+      logRecordFailure: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
         { provide: AgentsService, useValue: mockAgentsService },
+        { provide: AgentUsageEventsService, useValue: mockUsageEventsService },
       ],
     }).compile();
 
@@ -203,6 +210,7 @@ describe('ChatService', () => {
 
       const stream = await service.streamChat('org_unit', 'agent-unit-test', messages);
       await expect(collectAll(stream)).rejects.toThrow(BadGatewayException);
+      expect(mockUsageEventsService.recordChatMessage).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException from AgentsService when agent not found', async () => {
@@ -213,6 +221,20 @@ describe('ChatService', () => {
       await expect(
         service.streamChat('org_unit', 'missing-agent', messages),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('records builder test usage after a successful stream completes', async () => {
+      mockStream.mockImplementation(() => makeStreamGen(['Hello']));
+
+      await collectAll(await service.streamChat('org_unit', 'agent-unit-test', messages));
+
+      expect(mockUsageEventsService.recordChatMessage).toHaveBeenCalledWith({
+        orgId: 'org_unit',
+        agentId: 'agent-unit-test',
+        source: 'builder_test',
+        inputTokens: 0,
+        outputTokens: 0,
+      });
     });
   });
 
@@ -251,6 +273,21 @@ describe('ChatService', () => {
       await expect(
         service.streamPublicChat('agent-unit-test', 'bad-token', messages),
       ).rejects.toThrow(NotFoundException);
+      expect(mockUsageEventsService.recordChatMessage).not.toHaveBeenCalled();
+    });
+
+    it('records public usage with orgId from the public agent row after a successful stream', async () => {
+      mockStream.mockImplementation(() => makeStreamGen(['Hello']));
+
+      await collectAll(await service.streamPublicChat('agent-unit-test', 'share_abc', messages));
+
+      expect(mockUsageEventsService.recordChatMessage).toHaveBeenCalledWith({
+        orgId: 'org_unit',
+        agentId: 'agent-unit-test',
+        source: 'public',
+        inputTokens: 0,
+        outputTokens: 0,
+      });
     });
   });
 });

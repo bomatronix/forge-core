@@ -3,6 +3,7 @@ import { CoreModule, DrizzleModule } from '@forge-core/core';
 import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
 import { AgentsModule } from './agents/agents.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AgentsModule } from './agents/agents.module';
     }),
     DrizzleModule.forRootAsync(),
     AgentsModule,
+    MetricsModule,
   ],
   controllers: [AuthController, HealthController],
 })

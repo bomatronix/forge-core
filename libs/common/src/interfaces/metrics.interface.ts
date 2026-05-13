@@ -1,12 +1,8 @@
 export interface DashboardMetrics {
-  totalConversations: number;
-  totalConversationsChange: number;
-  resolutionRate: number;
-  resolutionRateChange: number;
-  handoffRate: number;
-  handoffRateChange: number;
-  avgResponseTime: string;
-  avgResponseTimeChange: number;
+  totalAgents: number;
+  activeAgents: number;
+  totalMessages: number;
+  period: 'all-time';
 }
 
 export interface UnresolvedIntent {
