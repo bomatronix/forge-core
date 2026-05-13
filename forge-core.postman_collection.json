@@ -1503,6 +1503,48 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Metrics (Spec-09)",
+      "description": "Authenticated tenant-scoped dashboard metrics smoke test for Spec-09.",
+      "item": [
+        {
+          "name": "Get dashboard metrics",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/metrics"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('metric fields are numeric', () => {",
+                  "  pm.expect(j.totalAgents).to.be.a('number');",
+                  "  pm.expect(j.activeAgents).to.be.a('number');",
+                  "  pm.expect(j.totalMessages).to.be.a('number');",
+                  "});",
+                  "pm.test('period is all-time', () => pm.expect(j.period).to.eql('all-time'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -77,6 +77,9 @@ function createDbWithAgent(agent: AgentRow): DbClient {
         where: jest.fn(async () => [agent]),
       })),
     })),
+    insert: jest.fn(() => ({
+      values: jest.fn(async () => undefined),
+    })),
   } as unknown as DbClient;
 }
 
@@ -86,6 +89,9 @@ function createEmptyDb(): DbClient {
       from: jest.fn(() => ({
         where: jest.fn(async () => []),
       })),
+    })),
+    insert: jest.fn(() => ({
+      values: jest.fn(async () => undefined),
     })),
   } as unknown as DbClient;
 }
