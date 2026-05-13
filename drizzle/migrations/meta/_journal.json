@@ -15,6 +15,13 @@
       "when": 1778629130911,
       "tag": "0001_add_agent_usage_events",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778696305804,
+      "tag": "0002_backfill_live_agent_share_tokens",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,47 @@ export class AgentsService {
     return randomBytes(32).toString('base64url');
   }
 
+  private async ensureLiveShareToken(row: typeof schema.agents.$inferSelect) {
+    if (row.status !== 'live' || row.shareToken) {
+      return row;
+    }
+
+    const [updated] = await this.db
+      .update(schema.agents)
+      .set({
+        shareToken: this.generateShareToken(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.agents.id, row.id),
+          eq(schema.agents.orgId, row.orgId),
+          eq(schema.agents.status, 'live'),
+          isNull(schema.agents.shareToken),
+          isNull(schema.agents.deletedAt),
+        ),
+      )
+      .returning();
+
+    return updated ?? row;
+  }
+
+  private async findOneRow(orgId: string, id: string) {
+    const [row] = await this.db
+      .select()
+      .from(schema.agents)
+      .where(
+        and(
+          eq(schema.agents.id, id),
+          eq(schema.agents.orgId, orgId),
+          isNull(schema.agents.deletedAt),
+        ),
+      );
+
+    if (!row) throw new NotFoundException(`Agent ${id} not found`);
+    return row;
+  }
+
   async list(orgId: string): Promise<Agent[]> {
     const rows = await this.db
       .select()
@@ -40,19 +81,8 @@ export class AgentsService {
   }
 
   async findOne(orgId: string, id: string) {
-    const [row] = await this.db
-      .select()
-      .from(schema.agents)
-      .where(
-        and(
-          eq(schema.agents.id, id),
-          eq(schema.agents.orgId, orgId),
-          isNull(schema.agents.deletedAt),
-        ),
-      );
-
-    if (!row) throw new NotFoundException(`Agent ${id} not found`);
-    return row;
+    const row = await this.findOneRow(orgId, id);
+    return this.ensureLiveShareToken(row);
   }
 
   async findPublicLive(id: string, shareToken: string) {
@@ -91,7 +121,7 @@ export class AgentsService {
   }
 
   async update(orgId: string, id: string, dto: UpdateAgentDto) {
-    await this.findOne(orgId, id); // verify ownership
+    await this.findOneRow(orgId, id); // verify ownership
 
     const [row] = await this.db
       .update(schema.agents)
@@ -109,7 +139,7 @@ export class AgentsService {
   }
 
   async updateStatus(orgId: string, id: string, dto: UpdateStatusDto) {
-    const agent = await this.findOne(orgId, id); // verify ownership
+    const agent = await this.findOneRow(orgId, id); // verify ownership
     const currentStatus = agent.status as AgentStatus;
 
     if (!allowedStatusTransitions[currentStatus]?.includes(dto.status)) {
@@ -146,7 +176,7 @@ export class AgentsService {
   }
 
   async remove(orgId: string, id: string): Promise<void> {
-    await this.findOne(orgId, id); // verify ownership
+    await this.findOneRow(orgId, id); // verify ownership
 
     await this.db
       .update(schema.agents)

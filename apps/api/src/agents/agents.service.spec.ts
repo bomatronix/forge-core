@@ -106,6 +106,31 @@ describe('AgentsService', () => {
       await expect(service.findOne(ORG, AGENT_ID)).resolves.toEqual(row);
     });
 
+    it('backfills a missing share token for legacy live agents', async () => {
+      const row = agentRow({ status: 'live', shareToken: null });
+      const updated = agentRow({ status: 'live', shareToken: 'generated-token' });
+      db.selectWhere.mockResolvedValue([row]);
+      db.updateReturning.mockResolvedValue([updated]);
+
+      await expect(service.findOne(ORG, AGENT_ID)).resolves.toEqual(updated);
+
+      expect(db.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          shareToken: expect.any(String),
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it('does not rewrite live agents that already have a share token', async () => {
+      const row = agentRow({ status: 'live', shareToken: 'existing-token' });
+      db.selectWhere.mockResolvedValue([row]);
+
+      await expect(service.findOne(ORG, AGENT_ID)).resolves.toEqual(row);
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
     it('throws when the agent is missing or not owned by the org', async () => {
       db.selectWhere.mockResolvedValue([]);
 
