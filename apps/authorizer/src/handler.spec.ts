@@ -68,6 +68,20 @@ describe('Lambda Authorizer handler', () => {
     expect(result.principalId).toBe('anonymous');
   });
 
+  it('allows stage-prefixed public health paths through the authorizer without a bearer token', async () => {
+    const result = await handler(mockEvent('', '/v1/api/health', 'GET'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
+  it('allows stage-prefixed public agent metadata through the authorizer without a bearer token', async () => {
+    const result = await handler(mockEvent('', '/v1/api/public/agents/agent_123', 'GET'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
   it('allows public agent streams through the authorizer without a bearer token', async () => {
     const result = await handler(
       mockEvent('', '/api/public/agents/agent_123/chat/stream', 'POST'),
@@ -77,8 +91,24 @@ describe('Lambda Authorizer handler', () => {
     expect(result.principalId).toBe('anonymous');
   });
 
+  it('allows stage-prefixed public agent streams through the authorizer without a bearer token', async () => {
+    const result = await handler(
+      mockEvent('', '/v1/api/public/agents/agent_123/chat/stream', 'POST'),
+    );
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
   it('does not treat nearby public agent paths as authorizer-public', async () => {
     const result = await handler(mockEvent('', '/api/public/agents/agent_123/chat', 'POST'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
+    expect(result.principalId).toBe('unauthorized');
+  });
+
+  it('does not treat nearby stage-prefixed public agent paths as authorizer-public', async () => {
+    const result = await handler(mockEvent('', '/v1/api/public/agents/agent_123/chat', 'POST'));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
     expect(result.principalId).toBe('unauthorized');
