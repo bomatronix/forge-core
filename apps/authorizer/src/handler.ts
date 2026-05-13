@@ -59,10 +59,16 @@ async function getAdapter(): Promise<AuthTokenVerifier> {
 const PUBLIC_AGENT_PATH = /^\/api\/public\/agents\/[^/]+$/;
 const PUBLIC_AGENT_STREAM_PATH = /^\/api\/public\/agents\/[^/]+\/chat\/stream$/;
 
+function normalizeGatewayPath(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return normalizedPath.replace(/^\/[^/]+(?=\/api(?:\/|$))/, '');
+}
+
 function isPublicRequest(path: string, method: string): boolean {
-  if (method === 'GET' && path === '/api/health') return true;
-  if (method === 'GET' && PUBLIC_AGENT_PATH.test(path)) return true;
-  if (method === 'POST' && PUBLIC_AGENT_STREAM_PATH.test(path)) return true;
+  const publicPath = normalizeGatewayPath(path);
+  if (method === 'GET' && publicPath === '/api/health') return true;
+  if (method === 'GET' && PUBLIC_AGENT_PATH.test(publicPath)) return true;
+  if (method === 'POST' && PUBLIC_AGENT_STREAM_PATH.test(publicPath)) return true;
   return false;
 }
 
