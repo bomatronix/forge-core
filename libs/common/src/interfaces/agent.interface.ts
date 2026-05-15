@@ -7,6 +7,7 @@ export type AgentChannel = 'Web' | 'WhatsApp' | 'Slack' | 'Email' | 'SMS';
 export interface Agent {
   id: string;
   name: string;
+  agentType: string;
   channels: AgentChannel[];
   conversations: number;
   resolution: number | null;
@@ -17,6 +18,7 @@ export interface Agent {
 
 export interface DraftAgent {
   templateId: string | null;
+  agentType: string;
   identity: TemplateIdentity;
   behaviour: TemplateBehaviour;
   actions: string[];

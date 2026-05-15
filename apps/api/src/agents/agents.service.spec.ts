@@ -12,6 +12,7 @@ type AgentRow = {
   name: string;
   status: string;
   templateId: string | null;
+  agentTypeSlug: string;
   uiConfig: Record<string, unknown> | null;
   aiConfig: Record<string, unknown> | null;
   shareToken: string | null;
@@ -28,6 +29,7 @@ function agentRow(overrides: Partial<AgentRow> = {}): AgentRow {
     name: 'Test Agent',
     status: 'draft',
     templateId: null,
+    agentTypeSlug: 'custom',
     uiConfig: { channels: ['Web'] },
     aiConfig: null,
     shareToken: null,
@@ -70,11 +72,13 @@ function createDbMock() {
 describe('AgentsService', () => {
   let db: ReturnType<typeof createDbMock>;
   let service: AgentsService;
+  let knowledgeSourcesService: { seedSelectionsForCreatedAgent: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
     db = createDbMock();
-    service = new AgentsService(db.db);
+    knowledgeSourcesService = { seedSelectionsForCreatedAgent: jest.fn().mockResolvedValue(undefined) };
+    service = new AgentsService(db.db, knowledgeSourcesService as never);
   });
 
   describe('list()', () => {
@@ -85,6 +89,7 @@ describe('AgentsService', () => {
         {
           id: AGENT_ID,
           name: 'Test Agent',
+          agentType: 'custom',
           status: 'draft',
           channels: ['Web'],
           conversations: 0,
@@ -165,7 +170,12 @@ describe('AgentsService', () => {
 
   describe('create()', () => {
     it('inserts a tenant-scoped draft-compatible agent row', async () => {
-      const row = agentRow({ name: 'Created Agent', templateId: 'template_1' });
+      const row = agentRow({
+        name: 'Created Agent',
+        templateId: 'template_1',
+        agentTypeSlug: 'support',
+      });
+      db.selectWhere.mockResolvedValue([{ agentTypeSlug: 'support', category: 'support' }]);
       db.insertReturning.mockResolvedValue([row]);
 
       await expect(
@@ -179,9 +189,17 @@ describe('AgentsService', () => {
         orgId: ORG,
         name: 'Created Agent',
         templateId: 'template_1',
+        agentTypeSlug: 'support',
         uiConfig: { channels: ['Web'] },
         aiConfig: null,
       });
+      expect(knowledgeSourcesService.seedSelectionsForCreatedAgent).toHaveBeenCalledWith(
+        ORG,
+        AGENT_ID,
+        'support',
+        'template_1',
+        undefined,
+      );
     });
   });
 

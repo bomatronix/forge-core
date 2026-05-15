@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, ilike, isNull, or } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { DRIZZLE_CLIENT, DbClient, schema } from '@forge-core/core';
 import type { Agent, AgentStatus } from '@forge-core/common';
 import type { CreateAgentDto } from '@forge-core/common';
 import type { UpdateAgentDto } from '@forge-core/common';
 import type { UpdateStatusDto } from '@forge-core/common';
+import { KnowledgeSourcesService } from './catalog/knowledge-sources.service';
 
 const allowedStatusTransitions: Record<AgentStatus, AgentStatus[]> = {
   draft: ['live'],
@@ -13,9 +14,18 @@ const allowedStatusTransitions: Record<AgentStatus, AgentStatus[]> = {
   paused: ['live'],
 };
 
+interface AgentListFilters {
+  search?: string;
+  status?: AgentStatus;
+  agentType?: string;
+}
+
 @Injectable()
 export class AgentsService {
-  constructor(@Inject(DRIZZLE_CLIENT) private db: DbClient) {}
+  constructor(
+    @Inject(DRIZZLE_CLIENT) private db: DbClient,
+    private readonly knowledgeSourcesService: KnowledgeSourcesService,
+  ) {}
 
   private generateShareToken(): string {
     return randomBytes(32).toString('base64url');
@@ -62,15 +72,54 @@ export class AgentsService {
     return row;
   }
 
-  async list(orgId: string): Promise<Agent[]> {
+  private normalizeAgentType(agentType?: string | null): string {
+    return agentType?.trim() || 'custom';
+  }
+
+  private async resolveAgentTypeSlug(orgId: string, dto: CreateAgentDto): Promise<string> {
+    if (!dto.templateId) return this.normalizeAgentType(dto.agentType);
+
+    const [template] = await this.db
+      .select({
+        agentTypeSlug: schema.agentTemplates.agentTypeSlug,
+        category: schema.agentTemplates.category,
+      })
+      .from(schema.agentTemplates)
+      .where(
+        and(
+          eq(schema.agentTemplates.slug, dto.templateId),
+          eq(schema.agentTemplates.enabled, true),
+          or(isNull(schema.agentTemplates.orgId), eq(schema.agentTemplates.orgId, orgId)),
+        ),
+      );
+
+    return this.normalizeAgentType(template?.agentTypeSlug ?? template?.category ?? dto.agentType);
+  }
+
+  async list(orgId: string, filters: AgentListFilters = {}): Promise<Agent[]> {
+    const conditions = [eq(schema.agents.orgId, orgId), isNull(schema.agents.deletedAt)];
+
+    if (filters.status) {
+      conditions.push(eq(schema.agents.status, filters.status));
+    }
+
+    if (filters.agentType && filters.agentType !== 'all') {
+      conditions.push(eq(schema.agents.agentTypeSlug, filters.agentType));
+    }
+
+    if (filters.search?.trim()) {
+      conditions.push(ilike(schema.agents.name, `%${filters.search.trim()}%`));
+    }
+
     const rows = await this.db
       .select()
       .from(schema.agents)
-      .where(and(eq(schema.agents.orgId, orgId), isNull(schema.agents.deletedAt)));
+      .where(and(...conditions));
 
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      agentType: row.agentTypeSlug,
       status: row.status as Agent['status'],
       channels:
         ((row.uiConfig as Record<string, unknown> | null)?.channels as Agent['channels']) ?? [],
@@ -106,16 +155,27 @@ export class AgentsService {
   }
 
   async create(orgId: string, dto: CreateAgentDto) {
+    const agentTypeSlug = await this.resolveAgentTypeSlug(orgId, dto);
+
     const [row] = await this.db
       .insert(schema.agents)
       .values({
         orgId,
         name: dto.name,
         templateId: dto.templateId ?? null,
+        agentTypeSlug,
         uiConfig: dto.uiConfig ?? null,
         aiConfig: dto.aiConfig ?? null,
       })
       .returning();
+
+    await this.knowledgeSourcesService.seedSelectionsForCreatedAgent(
+      orgId,
+      row.id,
+      row.agentTypeSlug,
+      dto.templateId,
+      dto.knowledgeSourceSlugs,
+    );
 
     return row;
   }
@@ -128,6 +188,7 @@ export class AgentsService {
       .set({
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.templateId !== undefined && { templateId: dto.templateId }),
+        ...(dto.agentType !== undefined && { agentTypeSlug: this.normalizeAgentType(dto.agentType) }),
         ...(dto.uiConfig !== undefined && { uiConfig: dto.uiConfig }),
         ...(dto.aiConfig !== undefined && { aiConfig: dto.aiConfig }),
         updatedAt: new Date(),

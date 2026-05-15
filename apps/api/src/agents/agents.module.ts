@@ -5,9 +5,39 @@ import { ChatController } from './chat/chat.controller';
 import { PublicChatController } from './chat/public-chat.controller';
 import { ChatService } from './chat/chat.service';
 import { AgentUsageEventsService } from './agent-usage-events.service';
+import { KnowledgeController } from './knowledge/knowledge.controller';
+import { KnowledgeService } from './knowledge/knowledge.service';
+import { AgentTypesController } from './catalog/agent-types.controller';
+import { AgentTypesService } from './catalog/agent-types.service';
+import { AgentTemplatesController } from './catalog/agent-templates.controller';
+import { AgentTemplatesService } from './catalog/agent-templates.service';
+import {
+  AgentKnowledgeSourcesController,
+  AgentTypeKnowledgeSourcesController,
+  KnowledgeSourceOptionsController,
+} from './catalog/knowledge-sources.controller';
+import { KnowledgeSourcesService } from './catalog/knowledge-sources.service';
 
 @Module({
-  controllers: [AgentsController, ChatController, PublicChatController],
-  providers: [AgentsService, ChatService, AgentUsageEventsService],
+  controllers: [
+    AgentsController,
+    ChatController,
+    PublicChatController,
+    KnowledgeController,
+    AgentTypesController,
+    AgentTemplatesController,
+    KnowledgeSourceOptionsController,
+    AgentTypeKnowledgeSourcesController,
+    AgentKnowledgeSourcesController,
+  ],
+  providers: [
+    AgentsService,
+    ChatService,
+    AgentUsageEventsService,
+    KnowledgeService,
+    AgentTypesService,
+    AgentTemplatesService,
+    KnowledgeSourcesService,
+  ],
 })
 export class AgentsModule {}

@@ -23,6 +23,7 @@ type AgentRow = {
   name: string;
   status: string;
   templateId: string | null;
+  agentTypeSlug: string;
   uiConfig: Record<string, unknown> | null;
   aiConfig: Record<string, unknown> | null;
   shareToken: string | null;
@@ -49,6 +50,7 @@ function createInMemoryDb(rows: AgentRow[]): DbClient {
             name: values.name ?? 'Untitled Agent',
             status: 'draft',
             templateId: values.templateId ?? null,
+            agentTypeSlug: values.agentTypeSlug ?? 'custom',
             uiConfig: values.uiConfig ?? null,
             aiConfig: values.aiConfig ?? null,
             shareToken: null,
@@ -140,6 +142,7 @@ describe('Agents API (e2e)', () => {
         id: expect.any(String),
         orgId: ORG,
         name: 'E2E Agent',
+        agentTypeSlug: 'custom',
         status: 'draft',
       }),
     );
@@ -151,6 +154,7 @@ describe('Agents API (e2e)', () => {
       expect.objectContaining({
         id: created.id,
         name: 'E2E Agent',
+        agentType: 'custom',
         status: 'draft',
         channels: ['Web'],
       }),

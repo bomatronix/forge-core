@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ChatService } from './chat.service';
 import { AgentsService } from '../agents.service';
 import { AgentUsageEventsService } from '../agent-usage-events.service';
+import { KnowledgeService } from '../knowledge/knowledge.service';
 
 // ---------------------------------------------------------------------------
 // Anthropic SDK mock
@@ -76,6 +77,7 @@ describe('ChatService', () => {
   let service: ChatService;
   let mockAgentsService: { findOne: jest.Mock; findPublicLive: jest.Mock };
   let mockUsageEventsService: { recordChatMessage: jest.Mock; logRecordFailure: jest.Mock };
+  let mockKnowledgeService: { findPromptItems: jest.Mock };
 
   beforeEach(async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key-unit';
@@ -87,12 +89,16 @@ describe('ChatService', () => {
       recordChatMessage: jest.fn().mockResolvedValue(undefined),
       logRecordFailure: jest.fn(),
     };
+    mockKnowledgeService = {
+      findPromptItems: jest.fn().mockResolvedValue([]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
         { provide: AgentsService, useValue: mockAgentsService },
         { provide: AgentUsageEventsService, useValue: mockUsageEventsService },
+        { provide: KnowledgeService, useValue: mockKnowledgeService },
       ],
     }).compile();
 
@@ -157,6 +163,35 @@ describe('ChatService', () => {
       const result = service.buildSystemPrompt({ name: 'Bot', uiConfig: null });
       expect(result).toBe('You are Bot.');
     });
+
+    it('injects complete Q&A and document knowledge', () => {
+      const result = service.buildSystemPrompt({ name: 'Bot', uiConfig: null }, [
+        {
+          type: 'qa',
+          question: 'What is your return policy?',
+          answer: '30-day returns',
+        },
+        {
+          type: 'document',
+          title: 'Shipping',
+          content: 'Ships to 40+ countries.',
+        },
+      ]);
+
+      expect(result).toContain('== Business Knowledge ==');
+      expect(result).toContain('Q: What is your return policy?\nA: 30-day returns');
+      expect(result).toContain('[Shipping]\nShips to 40+ countries.');
+      expect(result).toContain("say you don't have that information");
+    });
+
+    it('skips incomplete Q&A rows and empty documents', () => {
+      const result = service.buildSystemPrompt({ name: 'Bot', uiConfig: null }, [
+        { type: 'qa', question: 'What is your return policy?', answer: '' },
+        { type: 'document', title: 'Empty', content: '   ' },
+      ]);
+
+      expect(result).toBe('You are Bot.');
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -169,7 +204,9 @@ describe('ChatService', () => {
     it('yields delta events for each text chunk', async () => {
       mockStream.mockImplementation(() => makeStreamGen(['Hello ', 'World']));
 
-      const events = await collectAll(await service.streamChat('org_unit', 'agent-unit-test', messages));
+      const events = await collectAll(
+        await service.streamChat('org_unit', 'agent-unit-test', messages),
+      );
 
       expect(events).toContainEqual({ type: 'delta', content: 'Hello ' });
       expect(events).toContainEqual({ type: 'delta', content: 'World' });
@@ -178,20 +215,27 @@ describe('ChatService', () => {
     it('yields { type: "done" } as the last event', async () => {
       mockStream.mockImplementation(() => makeStreamGen(['Hello']));
 
-      const events = await collectAll(await service.streamChat('org_unit', 'agent-unit-test', messages));
+      const events = await collectAll(
+        await service.streamChat('org_unit', 'agent-unit-test', messages),
+      );
 
       expect(events[events.length - 1]).toEqual({ type: 'done' });
     });
 
     it('silently skips non-text-delta events', async () => {
       mockStream.mockImplementation(() =>
-        makeStreamGen(['Hi'], [
-          { type: 'message_start', message: {} },
-          { type: 'content_block_start', index: 0 },
-        ]),
+        makeStreamGen(
+          ['Hi'],
+          [
+            { type: 'message_start', message: {} },
+            { type: 'content_block_start', index: 0 },
+          ],
+        ),
       );
 
-      const events = await collectAll(await service.streamChat('org_unit', 'agent-unit-test', messages));
+      const events = await collectAll(
+        await service.streamChat('org_unit', 'agent-unit-test', messages),
+      );
 
       // Only delta + done — no message_start or content_block_start
       const types = events.map((e) => e.type);
@@ -218,9 +262,9 @@ describe('ChatService', () => {
       mockAgentsService.findOne.mockRejectedValue(new NotFoundException('Agent not found'));
 
       // findOne is called eagerly inside streamChat (before returning the iterable)
-      await expect(
-        service.streamChat('org_unit', 'missing-agent', messages),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.streamChat('org_unit', 'missing-agent', messages)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('records builder test usage after a successful stream completes', async () => {
@@ -236,6 +280,25 @@ describe('ChatService', () => {
         outputTokens: 0,
       });
     });
+
+    it('loads knowledge before streaming builder chat', async () => {
+      mockKnowledgeService.findPromptItems.mockResolvedValue([
+        { type: 'qa', question: 'What is your return policy?', answer: '30-day returns' },
+      ]);
+      mockStream.mockImplementation(() => makeStreamGen(['Hello']));
+
+      await collectAll(await service.streamChat('org_unit', 'agent-unit-test', messages));
+
+      expect(mockKnowledgeService.findPromptItems).toHaveBeenCalledWith(
+        'org_unit',
+        'agent-unit-test',
+      );
+      expect(mockStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          system: expect.stringContaining('Q: What is your return policy?\nA: 30-day returns'),
+        }),
+      );
+    });
   });
 
   describe('streamPublicChat', () => {
@@ -246,10 +309,7 @@ describe('ChatService', () => {
 
       await collectAll(await service.streamPublicChat('agent-unit-test', 'share_abc', messages));
 
-      expect(mockAgentsService.findPublicLive).toHaveBeenCalledWith(
-        'agent-unit-test',
-        'share_abc',
-      );
+      expect(mockAgentsService.findPublicLive).toHaveBeenCalledWith('agent-unit-test', 'share_abc');
     });
 
     it('yields delta events for public chat streams', async () => {
@@ -288,6 +348,54 @@ describe('ChatService', () => {
         inputTokens: 0,
         outputTokens: 0,
       });
+    });
+
+    it('loads knowledge using the public agent row org before streaming', async () => {
+      mockKnowledgeService.findPromptItems.mockResolvedValue([
+        { type: 'document', title: 'Policy', content: 'Public visitors can use this.' },
+      ]);
+      mockStream.mockImplementation(() => makeStreamGen(['Hello']));
+
+      await collectAll(await service.streamPublicChat('agent-unit-test', 'share_abc', messages));
+
+      expect(mockKnowledgeService.findPromptItems).toHaveBeenCalledWith(
+        'org_unit',
+        'agent-unit-test',
+      );
+      expect(mockStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          system: expect.stringContaining('[Policy]\nPublic visitors can use this.'),
+        }),
+      );
+    });
+  });
+
+  describe('chat', () => {
+    const messages = [{ role: 'user' as const, content: 'Hi' }];
+
+    it('loads knowledge before non-streaming builder chat', async () => {
+      mockKnowledgeService.findPromptItems.mockResolvedValue([
+        { type: 'qa', question: 'Do you ship internationally?', answer: 'Yes.' },
+      ]);
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'text', text: 'Yes.' }],
+        usage: { input_tokens: 12, output_tokens: 3 },
+      });
+
+      await expect(service.chat('org_unit', 'agent-unit-test', messages)).resolves.toEqual({
+        content: 'Yes.',
+        usage: { inputTokens: 12, outputTokens: 3 },
+      });
+
+      expect(mockKnowledgeService.findPromptItems).toHaveBeenCalledWith(
+        'org_unit',
+        'agent-unit-test',
+      );
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          system: expect.stringContaining('Q: Do you ship internationally?\nA: Yes.'),
+        }),
+      );
     });
   });
 });
