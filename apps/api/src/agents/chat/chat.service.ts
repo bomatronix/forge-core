@@ -1,15 +1,10 @@
 import { BadGatewayException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
-import {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-} from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import type { DraftAgent } from '@forge-core/common';
 import { AgentsService } from '../agents.service';
-import {
-  AgentUsageEventsService,
-  type AgentUsageSource,
-} from '../agent-usage-events.service';
+import { AgentUsageEventsService, type AgentUsageSource } from '../agent-usage-events.service';
+import { KnowledgeService } from '../knowledge/knowledge.service';
 
 export interface ChatResponse {
   content: string;
@@ -18,6 +13,14 @@ export interface ChatResponse {
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 type AgentPromptRow = { id: string; orgId: string; name: string; uiConfig: unknown };
+type PromptKnowledgeItem = {
+  type: string;
+  title?: string | null;
+  question?: string | null;
+  answer?: string | null;
+  content?: string | null;
+  knowledgeSourceOptionId?: string | null;
+};
 type StreamEvent = { type: 'delta'; content: string } | { type: 'done' };
 
 @Injectable()
@@ -28,6 +31,7 @@ export class ChatService implements OnModuleInit {
   constructor(
     private readonly agentsService: AgentsService,
     private readonly usageEventsService: AgentUsageEventsService,
+    private readonly knowledgeService: KnowledgeService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -61,17 +65,42 @@ export class ChatService implements OnModuleInit {
     return raw.trim();
   }
 
-  buildSystemPrompt(row: { name: string; uiConfig: unknown }): string {
+  buildSystemPrompt(
+    row: { name: string; uiConfig: unknown },
+    knowledgeItems: PromptKnowledgeItem[] = [],
+  ): string {
     const ui = row.uiConfig as DraftAgent | null;
     const parts: string[] = [`You are ${row.name}.`];
 
     if (ui?.behaviour?.systemPrompt) parts.push(ui.behaviour.systemPrompt);
-    if (ui?.identity?.tone === 'friendly')
-      parts.push('Be warm, approachable, and conversational.');
+    if (ui?.identity?.tone === 'friendly') parts.push('Be warm, approachable, and conversational.');
     if (ui?.identity?.tone === 'formal' || ui?.identity?.tone === 'professional')
       parts.push('Be professional, precise, and formal.');
     if (ui?.identity?.welcomeMessage)
       parts.push(`Your opening line is: "${ui.identity.welcomeMessage}"`);
+
+    const knowledgeParts = knowledgeItems
+      .map((item) => {
+        if (item.type === 'qa') {
+          const question = item.question?.trim();
+          const answer = item.answer?.trim();
+          return question && answer ? `Q: ${question}\nA: ${answer}` : null;
+        }
+
+        const content = item.content?.trim();
+        if (!content) return null;
+        const title = item.title?.trim();
+        return title ? `[${title}]\n${content}` : content;
+      })
+      .filter((part): part is string => Boolean(part));
+
+    if (knowledgeParts.length > 0) {
+      parts.push('\n== Business Knowledge ==');
+      parts.push(
+        "Answer questions using the information below. If the answer is not in this knowledge base, say you don't have that information.",
+      );
+      parts.push(...knowledgeParts);
+    }
 
     return parts.join('\n');
   }
@@ -83,7 +112,8 @@ export class ChatService implements OnModuleInit {
   ): Promise<AsyncIterable<StreamEvent>> {
     // Validate agent eagerly so callers can handle 404 before committing to a streaming response
     const row = await this.agentsService.findOne(orgId, agentId);
-    return this.streamWithAgent(row, messages, `org=${orgId}`, 'builder_test');
+    const knowledgeItems = await this.knowledgeService.findPromptItems(row.orgId, row.id);
+    return this.streamWithAgent(row, messages, `org=${orgId}`, 'builder_test', knowledgeItems);
   }
 
   async streamPublicChat(
@@ -92,7 +122,8 @@ export class ChatService implements OnModuleInit {
     messages: ChatMessage[],
   ): Promise<AsyncIterable<StreamEvent>> {
     const row = await this.agentsService.findPublicLive(agentId, shareToken);
-    return this.streamWithAgent(row, messages, 'public=true', 'public');
+    const knowledgeItems = await this.knowledgeService.findPromptItems(row.orgId, row.id);
+    return this.streamWithAgent(row, messages, 'public=true', 'public', knowledgeItems);
   }
 
   private async recordChatUsage(
@@ -118,8 +149,9 @@ export class ChatService implements OnModuleInit {
     messages: ChatMessage[],
     logContext: string,
     source: AgentUsageSource,
+    knowledgeItems: PromptKnowledgeItem[] = [],
   ): AsyncIterable<StreamEvent> {
-    const system = this.buildSystemPrompt(row);
+    const system = this.buildSystemPrompt(row, knowledgeItems);
     const anthropic = this.anthropic;
     const logger = this.logger;
     const recordChatUsage = this.recordChatUsage.bind(this);
@@ -138,10 +170,7 @@ export class ChatService implements OnModuleInit {
         });
 
         for await (const event of stream) {
-          if (
-            event.type === 'content_block_delta' &&
-            event.delta.type === 'text_delta'
-          ) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
             yield { type: 'delta', content: event.delta.text };
           }
         }
@@ -159,13 +188,10 @@ export class ChatService implements OnModuleInit {
     return gen();
   }
 
-  async chat(
-    orgId: string,
-    agentId: string,
-    messages: ChatMessage[],
-  ): Promise<ChatResponse> {
+  async chat(orgId: string, agentId: string, messages: ChatMessage[]): Promise<ChatResponse> {
     const row = await this.agentsService.findOne(orgId, agentId);
-    const system = this.buildSystemPrompt(row);
+    const knowledgeItems = await this.knowledgeService.findPromptItems(row.orgId, row.id);
+    const system = this.buildSystemPrompt(row, knowledgeItems);
 
     this.logger.log(
       `[chat] org=${orgId} agent=${agentId} name="${row.name}" messages=${messages.length} → Anthropic`,

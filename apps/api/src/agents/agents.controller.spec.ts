@@ -9,6 +9,7 @@ const AGENT_ID = 'agent_abc';
 const mockAgent = {
   id: AGENT_ID,
   name: 'Test Agent',
+  agentType: 'custom',
   status: 'draft' as const,
   channels: [] as never[],
   conversations: 0,
@@ -42,8 +43,12 @@ describe('AgentsController', () => {
   describe('list()', () => {
     it('delegates to service with org context', async () => {
       mockService.list.mockResolvedValue([mockAgent]);
-      const result = await controller.list(ORG);
-      expect(mockService.list).toHaveBeenCalledWith(ORG);
+      const result = await controller.list(ORG, 'support', 'draft', 'support');
+      expect(mockService.list).toHaveBeenCalledWith(ORG, {
+        search: 'support',
+        status: 'draft',
+        agentType: 'support',
+      });
       expect(result).toEqual([mockAgent]);
     });
   });

@@ -22,6 +22,27 @@
       "when": 1778696305804,
       "tag": "0002_backfill_live_agent_share_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778768646150,
+      "tag": "0003_add_agent_knowledge_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778793745301,
+      "tag": "0004_add_agent_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778868086476,
+      "tag": "0005_add_agent_types_catalog",
+      "breakpoints": true
     }
   ]
 }

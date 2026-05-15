@@ -7,9 +7,11 @@ import {
   CoreModule,
   DRIZZLE_CLIENT,
   DrizzleModule,
+  schema,
   type AuthTokenVerifier,
   type DbClient,
 } from '@forge-core/core';
+import type { KnowledgeItem } from '../knowledge/knowledge.service';
 import { AgentsModule } from '../agents.module';
 
 jest.mock('@anthropic-ai/sdk', () => ({
@@ -43,6 +45,7 @@ type AgentRow = {
   name: string;
   status: string;
   templateId: string | null;
+  agentTypeSlug: string;
   uiConfig: Record<string, unknown> | null;
   aiConfig: Record<string, unknown> | null;
   shareToken: string | null;
@@ -58,6 +61,7 @@ const testAgent: AgentRow = {
   name: 'Test Agent',
   status: 'live',
   templateId: null,
+  agentTypeSlug: 'support',
   uiConfig: {
     identity: { tone: 'friendly', welcomeMessage: 'Hello!' },
     behaviour: { systemPrompt: 'Help users with their questions.' },
@@ -70,12 +74,30 @@ const testAgent: AgentRow = {
   deletedAt: null,
 };
 
-function createDbWithAgent(agent: AgentRow): DbClient {
+function createDbWithAgent(agent: AgentRow, knowledgeItems: KnowledgeItem[] = []): DbClient {
   return {
     select: jest.fn(() => ({
-      from: jest.fn(() => ({
-        where: jest.fn(async () => [agent]),
-      })),
+      from: jest.fn((table: unknown) => {
+        if (table === schema.agentKnowledgeItems) {
+          return {
+            where: jest.fn(() => ({
+              orderBy: jest.fn(async () => knowledgeItems),
+            })),
+          };
+        }
+
+        if (table === schema.agentKnowledgeSourceSelections) {
+          return {
+            where: jest.fn(() => ({
+              orderBy: jest.fn(async () => []),
+            })),
+          };
+        }
+
+        return {
+          where: jest.fn(async () => [agent]),
+        };
+      }),
     })),
     insert: jest.fn(() => ({
       values: jest.fn(async () => undefined),
@@ -159,7 +181,10 @@ describe('Chat API (e2e)', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { content: string; usage: { inputTokens: number; outputTokens: number } };
+      const body = (await res.json()) as {
+        content: string;
+        usage: { inputTokens: number; outputTokens: number };
+      };
       expect(body).toEqual({
         content: 'I am Test Agent.',
         usage: { inputTokens: 10, outputTokens: 5 },
@@ -273,9 +298,7 @@ describe('Chat API (e2e)', () => {
     it('200 — returns public metadata for a live agent with a valid share token', async () => {
       const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
 
-      const res = await fetch(
-        `${baseUrl}/api/public/agents/${AGENT_ID}?token=share_e2e_token`,
-      );
+      const res = await fetch(`${baseUrl}/api/public/agents/${AGENT_ID}?token=share_e2e_token`);
 
       expect(res.status).toBe(200);
       await expect(res.json()).resolves.toEqual({

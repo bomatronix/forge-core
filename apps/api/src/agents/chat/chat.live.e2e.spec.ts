@@ -13,6 +13,7 @@ import {
   CoreModule,
   DRIZZLE_CLIENT,
   DrizzleModule,
+  schema,
   type AuthTokenVerifier,
   type DbClient,
 } from '@forge-core/core';
@@ -46,9 +47,19 @@ const testAgent = {
 async function buildApp(): Promise<{ app: INestApplication; baseUrl: string }> {
   const db: DbClient = {
     select: jest.fn(() => ({
-      from: jest.fn(() => ({
-        where: jest.fn(async () => [testAgent]),
-      })),
+      from: jest.fn((table: unknown) => {
+        if (table === schema.agentKnowledgeItems) {
+          return {
+            where: jest.fn(() => ({
+              orderBy: jest.fn(async () => []),
+            })),
+          };
+        }
+
+        return {
+          where: jest.fn(async () => [testAgent]),
+        };
+      }),
     })),
   } as unknown as DbClient;
 

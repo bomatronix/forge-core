@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsObject } from 'class-validator';
+import { IsArray, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateAgentDto {
   @IsString()
@@ -9,6 +9,10 @@ export class CreateAgentDto {
   @IsOptional()
   templateId?: string;
 
+  @IsString()
+  @IsOptional()
+  agentType?: string;
+
   @IsObject()
   @IsOptional()
   uiConfig?: Record<string, unknown>;
@@ -16,4 +20,9 @@ export class CreateAgentDto {
   @IsObject()
   @IsOptional()
   aiConfig?: Record<string, unknown>;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  knowledgeSourceSlugs?: string[];
 }

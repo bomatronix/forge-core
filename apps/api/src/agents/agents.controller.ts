@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CurrentTenant, RequirePermissions } from '@forge-core/core';
-import { CreateAgentDto, UpdateAgentDto, UpdateStatusDto } from '@forge-core/common';
+import { CreateAgentDto, UpdateAgentDto, UpdateStatusDto, type AgentStatus } from '@forge-core/common';
 import { AgentsService } from './agents.service';
 
 @Controller('agents')
@@ -9,8 +9,13 @@ export class AgentsController {
 
   @Get()
   @RequirePermissions('agents:read')
-  list(@CurrentTenant() orgId: string) {
-    return this.agentsService.list(orgId);
+  list(
+    @CurrentTenant() orgId: string,
+    @Query('search') search?: string,
+    @Query('status') status?: AgentStatus,
+    @Query('agentType') agentType?: string,
+  ) {
+    return this.agentsService.list(orgId, { search, status, agentType });
   }
 
   @Get(':id')
