@@ -45,6 +45,15 @@
         "tsConfigPath": "libs/core/tsconfig.lib.json"
       }
     },
+    "channels": {
+      "type": "library",
+      "root": "libs/channels",
+      "sourceRoot": "libs/channels/src",
+      "entryFile": "index",
+      "compilerOptions": {
+        "tsConfigPath": "libs/channels/tsconfig.lib.json"
+      }
+    },
     "authorizer": {
       "type": "application",
       "root": "apps/authorizer",

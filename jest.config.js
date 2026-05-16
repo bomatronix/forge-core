@@ -19,5 +19,6 @@ module.exports = {
   moduleNameMapper: {
     '^@forge-core/common(.*)$': '<rootDir>/libs/common/src$1',
     '^@forge-core/core(.*)$': '<rootDir>/libs/core/src$1',
+    '^@forge-core/channels(.*)$': '<rootDir>/libs/channels/src$1',
   },
 };

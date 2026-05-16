@@ -197,6 +197,15 @@ export class ChatService implements OnModuleInit {
       `[chat] org=${orgId} agent=${agentId} name="${row.name}" messages=${messages.length} → Anthropic`,
     );
 
+    return this.chatWithSystem(system, messages);
+  }
+
+  /**
+   * Low-level chat — caller owns system prompt and history assembly.
+   * Used by ConversationsService and InboundService.
+   */
+  async chatWithSystem(system: string, messages: ChatMessage[]): Promise<ChatResponse> {
+    this.logger.log(`[chatWithSystem] messages=${messages.length} → Anthropic`);
     try {
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-6',
@@ -211,13 +220,8 @@ export class ChatService implements OnModuleInit {
         .join('');
 
       this.logger.log(
-        `[chat] agent=${agentId} ← Anthropic ok in=${response.usage.input_tokens} out=${response.usage.output_tokens}`,
+        `[chatWithSystem] ← Anthropic ok in=${response.usage.input_tokens} out=${response.usage.output_tokens}`,
       );
-
-      await this.recordChatUsage(row, 'builder_test', {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      });
 
       return {
         content,
@@ -228,7 +232,7 @@ export class ChatService implements OnModuleInit {
       };
     } catch (err) {
       this.logger.error(
-        `[chat] agent=${agentId} ← Anthropic error: ${err instanceof Error ? err.message : String(err)}`,
+        `[chatWithSystem] ← Anthropic error: ${err instanceof Error ? err.message : String(err)}`,
       );
       throw new BadGatewayException('Upstream API error');
     }

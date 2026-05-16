@@ -317,3 +317,113 @@ export const agentKnowledgeSourceSelections = pgTable(
     index('agent_knowledge_source_selections_agent_idx').on(t.agentId),
   ],
 );
+
+// ─── Spec-15 + Spec-17: Conversations (unified) ───────────────────────────────
+// workspaceChannelId = null → in-app dashboard chat
+// workspaceChannelId set  → external channel conversation (Slack, WhatsApp, etc.)
+
+export const conversations = pgTable(
+  'conversations',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    orgId: text('org_id').notNull(),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    // Channel conversations only — null for in-app chat
+    workspaceChannelId: uuid('workspace_channel_id')
+      .references(() => workspaceChannels.id, { onDelete: 'set null' }),
+    externalUserRef: text('external_user_ref'),   // stable user ID in the external platform
+    externalThreadRef: text('external_thread_ref'), // Slack thread_ts, email thread ID, etc.
+    title: text('title'),                           // auto-generated from first user message
+    status: text('status').notNull().default('open'), // 'open' | 'closed'
+    createdAt: timestamp('created_at')
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp('updated_at')
+      .notNull()
+      .default(sql`now()`),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (t) => [
+    index('conversations_org_agent_idx').on(t.orgId, t.agentId),
+    index('conversations_channel_user_idx').on(t.workspaceChannelId, t.externalUserRef),
+  ],
+);
+
+export const conversationMessages = pgTable(
+  'conversation_messages',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),   // 'user' | 'assistant'
+    content: text('content').notNull(),
+    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`), // raw platform payload, token counts
+    createdAt: timestamp('created_at')
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => [
+    index('conv_messages_conv_id_idx').on(t.conversationId),
+  ],
+);
+
+// ─── Spec-17: Workspace Channels ──────────────────────────────────────────────
+
+export const workspaceChannels = pgTable(
+  'workspace_channels',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    orgId: text('org_id').notNull(),
+    channelType: text('channel_type').notNull(), // ChannelType enum value
+    name: text('name').notNull(),
+    // config is AES-256-GCM encrypted at the service layer (see crypto.util.ts)
+    config: jsonb('config').notNull().default(sql`'{}'::jsonb`),
+    webhookSecret: text('webhook_secret'),       // HMAC secret for inbound verification
+    status: text('status').notNull().default('active'), // 'active' | 'paused' | 'error'
+    workspaceInstructions: text('workspace_instructions'), // prompt injection for all conversations
+    createdAt: timestamp('created_at')
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp('updated_at')
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => [
+    index('workspace_channels_org_idx').on(t.orgId),
+  ],
+);
+
+export const channelRoutingRules = pgTable(
+  'channel_routing_rules',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    workspaceChannelId: uuid('workspace_channel_id')
+      .notNull()
+      .references(() => workspaceChannels.id, { onDelete: 'cascade' }),
+    orgId: text('org_id').notNull(),
+    priority: integer('priority').notNull().default(0), // evaluated ascending; first match wins
+    conditionType: text('condition_type').notNull(),     // 'keyword' | 'always' | 'user_attribute'
+    conditionValue: jsonb('condition_value').notNull().default(sql`'{}'::jsonb`),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'restrict' }),
+    agentInstructions: text('agent_instructions'), // per-rule prompt injection
+    createdAt: timestamp('created_at')
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => [
+    index('channel_routing_rules_channel_priority_idx').on(t.workspaceChannelId, t.priority),
+  ],
+);
