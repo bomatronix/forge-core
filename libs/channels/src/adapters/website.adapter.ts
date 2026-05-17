@@ -25,9 +25,14 @@ export class WebsiteAdapter implements IChannelAdapter {
     },
     required: ['allowedOrigins'],
   };
-  readonly setupInstructions = 'Add the embed snippet to your website. Widget appears as a chat button in the bottom-right corner.';
+  readonly setupInstructions =
+    'Add the embed snippet to your website. Widget appears as a chat button in the bottom-right corner.';
 
-  parseInbound(_raw: unknown, _secret: string | null, _config: ChannelConfig): InboundMessage | null {
+  parseInbound(
+    _raw: unknown,
+    _secret: string | null,
+    _config: ChannelConfig,
+  ): InboundMessage | null {
     throw new Error('WebsiteAdapter: Not implemented (Phase 4)');
   }
 

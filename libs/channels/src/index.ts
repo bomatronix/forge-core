@@ -23,7 +23,11 @@ export type {
   RoutingRuleRow,
   ChannelCatalogItem,
 } from './channels.service';
-export type { HistoryMessage, ChannelConversationSummary, ChannelConversationMessage } from './conversation.service';
+export type {
+  HistoryMessage,
+  ChannelConversationSummary,
+  ChannelConversationMessage,
+} from './conversation.service';
 export type {
   IChannelAdapter,
   ChannelType,

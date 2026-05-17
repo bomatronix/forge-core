@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Post,
-  Param,
-  Req,
-  Res,
-  HttpCode,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { Controller, Post, Param, Req, Res, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from '@forge-core/core';
 import { InboundService } from './inbound.service';

@@ -23,7 +23,7 @@ function createRequest(cookie?: string): Request {
 
 function browserCookieHeader(cookies: string[] | undefined): string {
   return (cookies ?? [])
-    .map(cookie => cookie.split(';', 1)[0])
+    .map((cookie) => cookie.split(';', 1)[0])
     .filter(Boolean)
     .join('; ');
 }
@@ -65,11 +65,13 @@ describe('OidcProviderService', () => {
     });
 
     const redirect = new URL(authorizeResult.redirectUrl);
-    expect(redirect.origin + redirect.pathname).toBe('http://localhost:3001/api/docs/oauth2-redirect.html');
+    expect(redirect.origin + redirect.pathname).toBe(
+      'http://localhost:3001/api/docs/oauth2-redirect.html',
+    );
     expect(redirect.searchParams.get('code')).toBeTruthy();
     expect(redirect.searchParams.get('state')).toBe('state-123');
 
-    const tokenResponse = await service.exchangeToken(
+    const tokenResponse = (await service.exchangeToken(
       createRequest(),
       {
         grant_type: 'authorization_code',
@@ -79,17 +81,19 @@ describe('OidcProviderService', () => {
         code_verifier: 'verifier-123',
       },
       undefined,
-    ) as Record<string, string>;
+    )) as Record<string, string>;
 
     expect(tokenResponse.access_token).toBeTruthy();
     expect(tokenResponse.id_token).toBeTruthy();
     expect(tokenResponse.refresh_token).toBeTruthy();
 
-    const userInfo = service.getUserInfo(`Bearer ${tokenResponse.access_token}`) as UserInfoResponse;
+    const userInfo = service.getUserInfo(
+      `Bearer ${tokenResponse.access_token}`,
+    ) as UserInfoResponse;
     expect(userInfo.sub).toBe('dev-user-id');
     expect(userInfo.permissions).toEqual(['agents:read']);
 
-    const refreshResponse = await service.exchangeToken(
+    const refreshResponse = (await service.exchangeToken(
       createRequest(),
       {
         grant_type: 'refresh_token',
@@ -97,7 +101,7 @@ describe('OidcProviderService', () => {
         refresh_token: tokenResponse.refresh_token,
       },
       undefined,
-    ) as Record<string, string>;
+    )) as Record<string, string>;
 
     expect(refreshResponse.access_token).toBeTruthy();
     expect(refreshResponse.refresh_token).toBeTruthy();
@@ -133,10 +137,7 @@ describe('OidcProviderService', () => {
     const consentPage = service.getConsentPage(createRequest(cookieHeader));
     expect(consentPage).toContain('Third Party App');
 
-    const consentResult = await service.submitConsent(
-      createRequest(cookieHeader),
-      'approve',
-    );
+    const consentResult = await service.submitConsent(createRequest(cookieHeader), 'approve');
     const redirect = new URL(consentResult.redirectUrl);
     expect(redirect.origin + redirect.pathname).toBe('http://localhost:4000/callback');
     expect(redirect.searchParams.get('code')).toBeTruthy();
@@ -148,35 +149,41 @@ describe('OidcProviderService', () => {
     const mockClerk = {
       users: {
         getUserList: jest.fn().mockResolvedValue({
-          data: [{
-            id: 'user_clerk123',
-            primaryEmailAddressId: 'email_1',
-            emailAddresses: [{ id: 'email_1', emailAddress: 'alice@example.com' }],
-            firstName: 'Alice',
-            lastName: 'Smith',
-            imageUrl: null,
-          }],
+          data: [
+            {
+              id: 'user_clerk123',
+              primaryEmailAddressId: 'email_1',
+              emailAddresses: [{ id: 'email_1', emailAddress: 'alice@example.com' }],
+              firstName: 'Alice',
+              lastName: 'Smith',
+              imageUrl: null,
+            },
+          ],
         }),
         verifyPassword: jest.fn().mockResolvedValue({}),
         getOrganizationMembershipList: jest.fn().mockResolvedValue({
-          data: [{
-            organization: { id: 'org_mindrithm123' },
-            permissions: ['org:agents:read', 'org:agents:write'],
-          }],
+          data: [
+            {
+              organization: { id: 'org_mindrithm123' },
+              permissions: ['org:agents:read', 'org:agents:write'],
+            },
+          ],
         }),
       },
     };
     (createClerkClient as jest.Mock).mockReturnValue(mockClerk);
 
     // Set Clerk connection before instantiating so AuthHandlerConfigService picks it up
-    process.env.AUTH_HANDLER_CONNECTIONS_JSON = JSON.stringify([{
-      id: 'clerk',
-      name: 'Clerk',
-      type: 'oidc',
-      discoveryUrl: 'https://clerk.example.com/.well-known/openid-configuration',
-      clientId: 'clerk-client-id',
-      secretKey: 'sk_test_fake',
-    }]);
+    process.env.AUTH_HANDLER_CONNECTIONS_JSON = JSON.stringify([
+      {
+        id: 'clerk',
+        name: 'Clerk',
+        type: 'oidc',
+        discoveryUrl: 'https://clerk.example.com/.well-known/openid-configuration',
+        clientId: 'clerk-client-id',
+        secretKey: 'sk_test_fake',
+      },
+    ]);
 
     // Instantiate directly to preserve the env var (createService() deletes it)
     const service = new OidcProviderService(
@@ -185,26 +192,25 @@ describe('OidcProviderService', () => {
       new UpstreamOidcService(),
     );
 
-    const loginResult = await service.loginWithCredentials(
-      createRequest(),
-      {
-        client_id: 'agent-forge-web',
-        redirect_uri: 'https://mindrithm.app/callback',
-        email: 'alice@example.com',
-        password: 'correct-password',
-        connection: 'clerk',
-        scope: 'openid profile email agents:read agents:write',
-        code_challenge: 'challenge-clerk',
-        code_challenge_method: 'plain',
-      },
-    );
+    const loginResult = await service.loginWithCredentials(createRequest(), {
+      client_id: 'agent-forge-web',
+      redirect_uri: 'https://mindrithm.app/callback',
+      email: 'alice@example.com',
+      password: 'correct-password',
+      connection: 'clerk',
+      scope: 'openid profile email agents:read agents:write',
+      code_challenge: 'challenge-clerk',
+      code_challenge_method: 'plain',
+    });
 
     const redirect = new URL(loginResult.redirectUrl);
     const code = redirect.searchParams.get('code');
     expect(code).toBeTruthy();
-    expect(mockClerk.users.getOrganizationMembershipList).toHaveBeenCalledWith({ userId: 'user_clerk123' });
+    expect(mockClerk.users.getOrganizationMembershipList).toHaveBeenCalledWith({
+      userId: 'user_clerk123',
+    });
 
-    const tokenResponse = await service.exchangeToken(
+    const tokenResponse = (await service.exchangeToken(
       createRequest(),
       {
         grant_type: 'authorization_code',
@@ -214,11 +220,13 @@ describe('OidcProviderService', () => {
         code_verifier: 'challenge-clerk',
       },
       undefined,
-    ) as Record<string, string>;
+    )) as Record<string, string>;
 
     expect(tokenResponse.access_token).toBeTruthy();
 
-    const userInfo = service.getUserInfo(`Bearer ${tokenResponse.access_token}`) as UserInfoResponse;
+    const userInfo = service.getUserInfo(
+      `Bearer ${tokenResponse.access_token}`,
+    ) as UserInfoResponse;
     expect(userInfo.sub).toBe('user_clerk123');
     expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('org_mindrithm123');
   });
@@ -239,7 +247,7 @@ describe('OidcProviderService', () => {
     const code = new URL(authorizeResult.redirectUrl).searchParams.get('code');
     expect(code).toBeTruthy();
 
-    const tokenResponse = await service.exchangeToken(
+    const tokenResponse = (await service.exchangeToken(
       createRequest(),
       {
         grant_type: 'authorization_code',
@@ -249,17 +257,21 @@ describe('OidcProviderService', () => {
         code_verifier: 'verifier-org',
       },
       undefined,
-    ) as Record<string, string>;
+    )) as Record<string, string>;
 
-    const userInfo = service.getUserInfo(`Bearer ${tokenResponse.access_token}`) as UserInfoResponse;
+    const userInfo = service.getUserInfo(
+      `Bearer ${tokenResponse.access_token}`,
+    ) as UserInfoResponse;
     expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('org_test123');
   });
 
   it('org_id from authorization request takes precedence over upstream profile orgId', async () => {
     const mockUpstreamOidcService = {
-      buildAuthorizationUrl: jest.fn().mockImplementation((_conn: unknown, params: { state: string }) =>
-        Promise.resolve(`https://upstream.example.com/authorize?state=${params.state}`)
-      ),
+      buildAuthorizationUrl: jest
+        .fn()
+        .mockImplementation((_conn: unknown, params: { state: string }) =>
+          Promise.resolve(`https://upstream.example.com/authorize?state=${params.state}`),
+        ),
       exchangeCodeForProfile: jest.fn().mockResolvedValue({
         sub: 'upstream-user-1',
         email: 'user@example.com',
@@ -269,13 +281,15 @@ describe('OidcProviderService', () => {
       }),
     };
 
-    process.env.AUTH_HANDLER_CONNECTIONS_JSON = JSON.stringify([{
-      id: 'mock-oidc',
-      name: 'Mock OIDC',
-      type: 'oidc',
-      discoveryUrl: 'https://upstream.example.com/.well-known/openid-configuration',
-      clientId: 'mock-client',
-    }]);
+    process.env.AUTH_HANDLER_CONNECTIONS_JSON = JSON.stringify([
+      {
+        id: 'mock-oidc',
+        name: 'Mock OIDC',
+        type: 'oidc',
+        discoveryUrl: 'https://upstream.example.com/.well-known/openid-configuration',
+        clientId: 'mock-client',
+      },
+    ]);
 
     const service = new OidcProviderService(
       new AuthHandlerConfigService(),
@@ -302,17 +316,16 @@ describe('OidcProviderService', () => {
 
     // Step 2: simulate upstream callback — upstream returns orgId: 'upstream-org-from-provider'
     const cookieHeader = browserCookieHeader(authorizeResult.cookies);
-    const callbackResult = await service.handleCallback(
-      createRequest(cookieHeader),
-      'mock-oidc',
-      { code: 'upstream-code', state: upstreamState },
-    );
+    const callbackResult = await service.handleCallback(createRequest(cookieHeader), 'mock-oidc', {
+      code: 'upstream-code',
+      state: upstreamState,
+    });
 
     const code = new URL(callbackResult.redirectUrl).searchParams.get('code');
     expect(code).toBeTruthy();
 
     const callbackCookieHeader = browserCookieHeader(callbackResult.cookies);
-    const tokenResponse = await service.exchangeToken(
+    const tokenResponse = (await service.exchangeToken(
       createRequest(callbackCookieHeader),
       {
         grant_type: 'authorization_code',
@@ -322,9 +335,11 @@ describe('OidcProviderService', () => {
         code_verifier: 'verifier-precedence',
       },
       undefined,
-    ) as Record<string, string>;
+    )) as Record<string, string>;
 
-    const userInfo = service.getUserInfo(`Bearer ${tokenResponse.access_token}`) as UserInfoResponse;
+    const userInfo = service.getUserInfo(
+      `Bearer ${tokenResponse.access_token}`,
+    ) as UserInfoResponse;
     // client-supplied org_id wins over upstream provider's orgId
     expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('client-supplied-org');
   });
@@ -332,7 +347,7 @@ describe('OidcProviderService', () => {
   it('issues machine tokens via client_credentials and blocks them from userinfo', async () => {
     const service = createService();
 
-    const tokenResponse = await service.exchangeToken(
+    const tokenResponse = (await service.exchangeToken(
       createRequest(),
       {
         grant_type: 'client_credentials',
@@ -341,11 +356,13 @@ describe('OidcProviderService', () => {
         scope: 'agents:read agents:write',
       },
       undefined,
-    ) as Record<string, string>;
+    )) as Record<string, string>;
 
     expect(tokenResponse.access_token).toBeTruthy();
     expect(tokenResponse.scope).toBe('agents:read agents:write');
 
-    expect(() => service.getUserInfo(`Bearer ${tokenResponse.access_token}`)).toThrow(ForbiddenException);
+    expect(() => service.getUserInfo(`Bearer ${tokenResponse.access_token}`)).toThrow(
+      ForbiddenException,
+    );
   });
 });

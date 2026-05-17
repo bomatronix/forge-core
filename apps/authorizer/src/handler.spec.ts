@@ -1,5 +1,9 @@
 import type { APIGatewayRequestAuthorizerEvent } from 'aws-lambda';
-import { getAuthHandlerRuntimeConfig, issueAccessToken, issueIdToken } from '@forge-core/core/auth/platform-tokens';
+import {
+  getAuthHandlerRuntimeConfig,
+  issueAccessToken,
+  issueIdToken,
+} from '@forge-core/core/auth/platform-tokens';
 import { handler } from './handler';
 
 const runtime = getAuthHandlerRuntimeConfig();
@@ -38,12 +42,13 @@ const buildUserToken = (
   }> = {},
 ) =>
   issueAccessToken(runtime, {
-    subject: 'subject' in overrides ? overrides.subject ?? 'user_abc123' : 'user_abc123',
+    subject: 'subject' in overrides ? (overrides.subject ?? 'user_abc123') : 'user_abc123',
     clientId: 'forge-swagger-ui',
-    email: 'email' in overrides ? overrides.email ?? null : 'alice@example.com',
-    name: 'name' in overrides ? overrides.name ?? null : 'Alice',
-    avatarUrl: 'avatarUrl' in overrides ? overrides.avatarUrl ?? null : 'https://example.com/avatar.jpg',
-    orgId: 'orgId' in overrides ? overrides.orgId ?? null : 'org_xyz',
+    email: 'email' in overrides ? (overrides.email ?? null) : 'alice@example.com',
+    name: 'name' in overrides ? (overrides.name ?? null) : 'Alice',
+    avatarUrl:
+      'avatarUrl' in overrides ? (overrides.avatarUrl ?? null) : 'https://example.com/avatar.jpg',
+    orgId: 'orgId' in overrides ? (overrides.orgId ?? null) : 'org_xyz',
     permissions: overrides.permissions ?? ['org:agents:read', 'org:agents:write'],
     scope: overrides.scope ?? ['openid', 'profile', 'email', 'agents:read', 'agents:write'],
     tokenKind: 'user',
@@ -90,18 +95,14 @@ describe('Lambda Authorizer handler', () => {
   });
 
   it('uses the real request method for API Gateway ANY proxy routes', async () => {
-    const result = await handler(
-      mockEvent('', '/api/public/agents/agent_123', 'GET', 'ANY'),
-    );
+    const result = await handler(mockEvent('', '/api/public/agents/agent_123', 'GET', 'ANY'));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
     expect(result.principalId).toBe('anonymous');
   });
 
   it('allows public agent streams through the authorizer without a bearer token', async () => {
-    const result = await handler(
-      mockEvent('', '/api/public/agents/agent_123/chat/stream', 'POST'),
-    );
+    const result = await handler(mockEvent('', '/api/public/agents/agent_123/chat/stream', 'POST'));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
     expect(result.principalId).toBe('anonymous');
@@ -140,9 +141,7 @@ describe('Lambda Authorizer handler', () => {
   });
 
   it('does not treat nearby public agent paths as authorizer-public for API Gateway ANY proxy routes', async () => {
-    const result = await handler(
-      mockEvent('', '/api/public/agents/agent_123/chat', 'POST', 'ANY'),
-    );
+    const result = await handler(mockEvent('', '/api/public/agents/agent_123/chat', 'POST', 'ANY'));
 
     expect(result.policyDocument.Statement[0].Effect).toBe('Deny');
     expect(result.principalId).toBe('unauthorized');

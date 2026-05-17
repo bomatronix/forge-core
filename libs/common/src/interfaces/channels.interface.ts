@@ -1,11 +1,4 @@
-export type ChannelType =
-  | 'test'
-  | 'webhook'
-  | 'slack'
-  | 'email'
-  | 'sms'
-  | 'whatsapp'
-  | 'website';
+export type ChannelType = 'test' | 'webhook' | 'slack' | 'email' | 'sms' | 'whatsapp' | 'website';
 
 export interface ChannelCatalogItem {
   type: ChannelType;

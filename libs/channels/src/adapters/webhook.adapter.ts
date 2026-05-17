@@ -23,7 +23,11 @@ export class WebhookAdapter implements IChannelAdapter {
   };
   readonly setupInstructions = 'Enter the URL to receive outbound messages via HTTP POST.';
 
-  parseInbound(_raw: unknown, _secret: string | null, _config: ChannelConfig): InboundMessage | null {
+  parseInbound(
+    _raw: unknown,
+    _secret: string | null,
+    _config: ChannelConfig,
+  ): InboundMessage | null {
     throw new Error('WebhookAdapter.parseInbound: Not implemented (Phase 2)');
   }
 

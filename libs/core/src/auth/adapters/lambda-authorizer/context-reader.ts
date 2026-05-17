@@ -17,7 +17,7 @@ import type { AuthSession } from '../../types';
 export class LambdaAuthorizerContextReader implements AuthTokenVerifier {
   async verifyToken(_token: string): Promise<AuthSession | null> {
     const { event } = getCurrentInvoke();
-    const context = (event?.requestContext?.authorizer) as Record<string, string> | undefined;
+    const context = event?.requestContext?.authorizer as Record<string, string> | undefined;
 
     if (!context?.userId) {
       return null;

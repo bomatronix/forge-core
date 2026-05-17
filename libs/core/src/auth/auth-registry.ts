@@ -52,10 +52,7 @@ export function resolveAuthAdapter(
  * Uses an exhaustive switch — adding a new key to AuthProviderKey
  * without adding a case here will cause a TypeScript error.
  */
-export function resolveAuthIssuer(
-  provider: AuthProviderKey,
-  secretKey?: string,
-): AuthTokenIssuer {
+export function resolveAuthIssuer(provider: AuthProviderKey, secretKey?: string): AuthTokenIssuer {
   switch (provider) {
     case 'auth-handler':
       return new DevTokenIssuer(); // auth-handler itself owns standards-based token issuance

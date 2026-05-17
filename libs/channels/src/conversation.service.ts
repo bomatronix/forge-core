@@ -36,9 +36,7 @@ export interface ChannelConversationMessage {
 export class ChannelConversationService {
   private readonly logger = new Logger(ChannelConversationService.name);
 
-  constructor(
-    @Inject(DRIZZLE_CLIENT) private readonly db: DbClient,
-  ) {}
+  constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DbClient) {}
 
   /**
    * Finds an existing open conversation for the (channelId, agentId, externalUserRef) tuple,

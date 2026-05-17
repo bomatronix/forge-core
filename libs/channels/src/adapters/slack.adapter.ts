@@ -30,7 +30,11 @@ export class SlackAdapter implements IChannelAdapter {
 4. Copy the **Bot OAuth Token** and **Signing Secret** above
 `.trim();
 
-  parseInbound(_raw: unknown, _secret: string | null, _config: ChannelConfig): InboundMessage | null {
+  parseInbound(
+    _raw: unknown,
+    _secret: string | null,
+    _config: ChannelConfig,
+  ): InboundMessage | null {
     throw new Error('SlackAdapter: Not implemented (Phase 2)');
   }
 

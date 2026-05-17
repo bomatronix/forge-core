@@ -89,9 +89,13 @@ function createChannelsDb(
             const newRow = { id: randomUUID(), createdAt: now, updatedAt: now, ...item } as AnyRow;
             if ('channelType' in item) {
               const row = newRow as ChannelDbRow;
-              if (!(row as Partial<ChannelDbRow>).status) (row as Partial<ChannelDbRow>).status = 'active';
+              if (!(row as Partial<ChannelDbRow>).status)
+                (row as Partial<ChannelDbRow>).status = 'active';
               channelRows.push(row);
-            } else if ('workspaceChannelId' in item && !('agentId' in item && 'externalUserRef' in item)) {
+            } else if (
+              'workspaceChannelId' in item &&
+              !('agentId' in item && 'externalUserRef' in item)
+            ) {
               ruleRows.push(newRow as RuleDbRow);
             } else if ('agentId' in item && 'externalUserRef' in item) {
               convRows.push(newRow as ConvDbRow);
@@ -103,14 +107,20 @@ function createChannelsDb(
           return results;
         };
 
-        return {
-          returning: jest.fn(execute),
-          // Make the result directly awaitable (no .returning() call needed)
-          then: (
-            resolve: (v: AnyRow[]) => void,
-            reject: (e: unknown) => void,
-          ) => execute().then(resolve, reject),
+        type InsertBuilder = {
+          returning: jest.Mock;
+          onConflictDoNothing: jest.Mock<InsertBuilder>;
+          then: (resolve: (v: AnyRow[]) => void, reject: (e: unknown) => void) => void;
         };
+        const builder: InsertBuilder = {
+          returning: jest.fn(execute),
+          onConflictDoNothing: jest.fn(() => builder),
+          // Make the result directly awaitable (no .returning() call needed)
+          then: (resolve: (v: AnyRow[]) => void, reject: (e: unknown) => void) => {
+            void execute().then(resolve, reject);
+          },
+        };
+        return builder;
       }),
     })),
     update: jest.fn(() => ({
@@ -223,7 +233,10 @@ async function buildApp(
     .overrideProvider(KnowledgeService)
     .useValue({ findPromptItems: jest.fn().mockResolvedValue([]) })
     .overrideProvider(AgentUsageEventsService)
-    .useValue({ recordChatMessage: jest.fn().mockResolvedValue(undefined), logRecordFailure: jest.fn() })
+    .useValue({
+      recordChatMessage: jest.fn().mockResolvedValue(undefined),
+      logRecordFailure: jest.fn(),
+    })
     .compile();
 
   const app = moduleFixture.createNestApplication();
@@ -292,7 +305,12 @@ describe('Channels API (e2e)', () => {
     });
 
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: string; channelType: string; name: string; status: string };
+    const body = (await res.json()) as {
+      id: string;
+      channelType: string;
+      name: string;
+      status: string;
+    };
     expect(body).toMatchObject({
       id: expect.any(String),
       channelType: 'test',
@@ -449,9 +467,15 @@ describe('Channels API (e2e)', () => {
     // Both turns (user + assistant) must be persisted by ChannelConversationService.saveMessages
     expect(msgRows).toHaveLength(2);
     expect(msgRows.find((m) => (m as unknown as { role: string }).role === 'user')).toBeDefined();
-    expect(msgRows.find((m) => (m as unknown as { role: string }).role === 'assistant')).toBeDefined();
-    const userMsg = msgRows.find((m) => (m as unknown as { role: string }).role === 'user') as unknown as { content: string };
-    const botMsg = msgRows.find((m) => (m as unknown as { role: string }).role === 'assistant') as unknown as { content: string };
+    expect(
+      msgRows.find((m) => (m as unknown as { role: string }).role === 'assistant'),
+    ).toBeDefined();
+    const userMsg = msgRows.find(
+      (m) => (m as unknown as { role: string }).role === 'user',
+    ) as unknown as { content: string };
+    const botMsg = msgRows.find(
+      (m) => (m as unknown as { role: string }).role === 'assistant',
+    ) as unknown as { content: string };
     expect(userMsg.content).toBe('Hello from e2e');
     expect(botMsg.content).toBe('Mock reply from E2E Agent');
   });
@@ -504,11 +528,9 @@ describe('Channels API (e2e)', () => {
     } as RuleDbRow;
     rules.push(rule);
 
-    const res = await api(
-      baseUrl,
-      `/api/channels/${ch.id}/routing-rules/${rule.id}`,
-      { method: 'DELETE' },
-    );
+    const res = await api(baseUrl, `/api/channels/${ch.id}/routing-rules/${rule.id}`, {
+      method: 'DELETE',
+    });
 
     expect(res.status).toBe(204);
   });

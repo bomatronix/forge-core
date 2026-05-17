@@ -77,17 +77,21 @@ export function getAuthHandlerRuntimeConfig(
 ): AuthHandlerRuntimeConfig {
   const issuer = env.AUTH_HANDLER_ISSUER?.trim() || 'http://localhost:3002/auth';
   const audience = env.AUTH_HANDLER_AUDIENCE?.trim() || 'forge-core-api';
-  const cookieSecret = env.AUTH_HANDLER_COOKIE_SECRET?.trim() || 'forge-core-auth-handler-cookie-secret';
+  const cookieSecret =
+    env.AUTH_HANDLER_COOKIE_SECRET?.trim() || 'forge-core-auth-handler-cookie-secret';
   const privateKey = normalizePem(env.AUTH_HANDLER_PRIVATE_KEY) || DEV_PRIVATE_KEY;
   const publicKey = normalizePem(env.AUTH_HANDLER_PUBLIC_KEY) || DEV_PUBLIC_KEY;
 
   // Fail fast in production if signing keys haven't been provisioned.
   // The DEV_PRIVATE_KEY/DEV_PUBLIC_KEY fallbacks are committed to source — they must
   // never be used to sign tokens in a production environment.
-  if (env.NODE_ENV === 'production' && (!env.AUTH_HANDLER_PRIVATE_KEY || !env.AUTH_HANDLER_PUBLIC_KEY)) {
+  if (
+    env.NODE_ENV === 'production' &&
+    (!env.AUTH_HANDLER_PRIVATE_KEY || !env.AUTH_HANDLER_PUBLIC_KEY)
+  ) {
     throw new Error(
       'AUTH_HANDLER_PRIVATE_KEY and AUTH_HANDLER_PUBLIC_KEY must be set in production. ' +
-      'The dev key fallback is committed to source and is not safe for production use.',
+        'The dev key fallback is committed to source and is not safe for production use.',
     );
   }
 
@@ -107,7 +111,9 @@ export function getSigningKeyId(publicKey: string): string {
   return createHash('sha256').update(publicKey).digest('base64url').slice(0, 16);
 }
 
-export function buildJwksDocument(publicKey: string): { keys: Array<Jwk & { kid: string; use: 'sig'; alg: 'RS256' }> } {
+export function buildJwksDocument(publicKey: string): {
+  keys: Array<Jwk & { kid: string; use: 'sig'; alg: 'RS256' }>;
+} {
   const key = createPublicKey(publicKey);
   const jwk = key.export({ format: 'jwk' }) as Jwk;
 
@@ -220,7 +226,10 @@ export function authSessionFromClaims(claims: IssuedTokenClaims): AuthSession {
 }
 
 export function browserSessionFromClaims(
-  claims: Pick<IssuedTokenClaims, 'sub' | 'email' | 'name' | 'avatar_url' | 'org_id' | 'permissions'> & {
+  claims: Pick<
+    IssuedTokenClaims,
+    'sub' | 'email' | 'name' | 'avatar_url' | 'org_id' | 'permissions'
+  > & {
     provider: string;
   },
 ): BrowserSession {

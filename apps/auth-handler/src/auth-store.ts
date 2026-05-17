@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { AuthorizationCodeRecord, ConsentRecord, RefreshTokenRecord } from '@forge-core/core/auth/oauth.types';
+import type {
+  AuthorizationCodeRecord,
+  ConsentRecord,
+  RefreshTokenRecord,
+} from '@forge-core/core/auth/oauth.types';
 
 // TODO [P1 — IN-MEMORY STORE] This store uses plain Maps. All state is lost on
 // Lambda cold start. Refresh tokens survive for 30 days in theory but are wiped
@@ -62,7 +66,7 @@ export class AuthPersistenceStore {
   hasConsent(clientId: string, subject: string, scope: string[]): boolean {
     const existing = this.consents.get(this.getConsentKey(clientId, subject));
     if (!existing) return false;
-    return scope.every(item => existing.scope.includes(item));
+    return scope.every((item) => existing.scope.includes(item));
   }
 
   private cleanupExpiredRecords(): void {

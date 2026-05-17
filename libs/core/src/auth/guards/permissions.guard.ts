@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
@@ -57,9 +52,7 @@ export class PermissionsGuard implements CanActivate {
     // Normalize Clerk's org:-prefixed permissions (e.g. org:agents:read → agents:read)
     // so Clerk-direct tokens and auth-handler-issued tokens (which use agents:read) both match.
     const normalize = (p: string) => p.replace(/^org:/, '');
-    const hasPermission = required.some((perm) =>
-      permissions.some((p) => normalize(p) === perm),
-    );
+    const hasPermission = required.some((perm) => permissions.some((p) => normalize(p) === perm));
     if (!hasPermission) {
       throw new ForbiddenException('Insufficient permissions');
     }

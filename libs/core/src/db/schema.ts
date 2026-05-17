@@ -113,7 +113,9 @@ export const knowledgeSourceOptions = pgTable(
     emoji: text('emoji').notNull(),
     description: text('description').notNull(),
     category: text('category').notNull().default('general'),
-    uiSchema: jsonb('ui_schema').notNull().default(sql`'{}'::jsonb`),
+    uiSchema: jsonb('ui_schema')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     enabled: boolean('enabled').notNull().default(true),
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at')
@@ -181,8 +183,12 @@ export const agentTemplates = pgTable(
     description: text('description').notNull(),
     identity: jsonb('identity').notNull(),
     behaviour: jsonb('behaviour').notNull(),
-    actions: jsonb('actions').notNull().default(sql`'[]'::jsonb`),
-    channels: jsonb('channels').notNull().default(sql`'[]'::jsonb`),
+    actions: jsonb('actions')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    channels: jsonb('channels')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     enabled: boolean('enabled').notNull().default(true),
     position: integer('position').notNull().default(0),
     createdAt: timestamp('created_at')
@@ -333,11 +339,12 @@ export const conversations = pgTable(
       .notNull()
       .references(() => agents.id, { onDelete: 'cascade' }),
     // Channel conversations only — null for in-app chat
-    workspaceChannelId: uuid('workspace_channel_id')
-      .references(() => workspaceChannels.id, { onDelete: 'set null' }),
-    externalUserRef: text('external_user_ref'),   // stable user ID in the external platform
+    workspaceChannelId: uuid('workspace_channel_id').references(() => workspaceChannels.id, {
+      onDelete: 'set null',
+    }),
+    externalUserRef: text('external_user_ref'), // stable user ID in the external platform
     externalThreadRef: text('external_thread_ref'), // Slack thread_ts, email thread ID, etc.
-    title: text('title'),                           // auto-generated from first user message
+    title: text('title'), // auto-generated from first user message
     status: text('status').notNull().default('open'), // 'open' | 'closed'
     createdAt: timestamp('created_at')
       .notNull()
@@ -362,16 +369,16 @@ export const conversationMessages = pgTable(
     conversationId: uuid('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
-    role: text('role').notNull(),   // 'user' | 'assistant'
+    role: text('role').notNull(), // 'user' | 'assistant'
     content: text('content').notNull(),
-    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`), // raw platform payload, token counts
+    metadata: jsonb('metadata')
+      .notNull()
+      .default(sql`'{}'::jsonb`), // raw platform payload, token counts
     createdAt: timestamp('created_at')
       .notNull()
       .default(sql`now()`),
   },
-  (t) => [
-    index('conv_messages_conv_id_idx').on(t.conversationId),
-  ],
+  (t) => [index('conv_messages_conv_id_idx').on(t.conversationId)],
 );
 
 // ─── Spec-17: Workspace Channels ──────────────────────────────────────────────
@@ -386,8 +393,10 @@ export const workspaceChannels = pgTable(
     channelType: text('channel_type').notNull(), // ChannelType enum value
     name: text('name').notNull(),
     // config is AES-256-GCM encrypted at the service layer (see crypto.util.ts)
-    config: jsonb('config').notNull().default(sql`'{}'::jsonb`),
-    webhookSecret: text('webhook_secret'),       // HMAC secret for inbound verification
+    config: jsonb('config')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    webhookSecret: text('webhook_secret'), // HMAC secret for inbound verification
     status: text('status').notNull().default('active'), // 'active' | 'paused' | 'error'
     workspaceInstructions: text('workspace_instructions'), // prompt injection for all conversations
     createdAt: timestamp('created_at')
@@ -397,9 +406,7 @@ export const workspaceChannels = pgTable(
       .notNull()
       .default(sql`now()`),
   },
-  (t) => [
-    index('workspace_channels_org_idx').on(t.orgId),
-  ],
+  (t) => [index('workspace_channels_org_idx').on(t.orgId)],
 );
 
 export const channelRoutingRules = pgTable(
@@ -413,8 +420,10 @@ export const channelRoutingRules = pgTable(
       .references(() => workspaceChannels.id, { onDelete: 'cascade' }),
     orgId: text('org_id').notNull(),
     priority: integer('priority').notNull().default(0), // evaluated ascending; first match wins
-    conditionType: text('condition_type').notNull(),     // 'keyword' | 'always' | 'user_attribute'
-    conditionValue: jsonb('condition_value').notNull().default(sql`'{}'::jsonb`),
+    conditionType: text('condition_type').notNull(), // 'keyword' | 'always' | 'user_attribute'
+    conditionValue: jsonb('condition_value')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     agentId: uuid('agent_id')
       .notNull()
       .references(() => agents.id, { onDelete: 'restrict' }),
@@ -423,7 +432,5 @@ export const channelRoutingRules = pgTable(
       .notNull()
       .default(sql`now()`),
   },
-  (t) => [
-    index('channel_routing_rules_channel_priority_idx').on(t.workspaceChannelId, t.priority),
-  ],
+  (t) => [index('channel_routing_rules_channel_priority_idx').on(t.workspaceChannelId, t.priority)],
 );

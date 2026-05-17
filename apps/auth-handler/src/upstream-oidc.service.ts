@@ -57,16 +57,27 @@ export class UpstreamOidcService {
     },
   ): Promise<UpstreamProfile> {
     const metadata = await this.getMetadata(connection);
-    const tokenResponse = await this.exchangeCode(connection, metadata, params.code, params.redirectUri);
+    const tokenResponse = await this.exchangeCode(
+      connection,
+      metadata,
+      params.code,
+      params.redirectUri,
+    );
     const idTokenClaims = tokenResponse.id_token
       ? await this.verifyIdToken(connection, metadata, tokenResponse.id_token, params.nonce)
       : null;
 
-    const userInfoClaims = (!idTokenClaims || !idTokenClaims.email || !idTokenClaims.name) && tokenResponse.access_token && metadata.userinfo_endpoint
-      ? await this.fetchUserInfo(metadata.userinfo_endpoint, tokenResponse.access_token)
-      : null;
+    const userInfoClaims =
+      (!idTokenClaims || !idTokenClaims.email || !idTokenClaims.name) &&
+      tokenResponse.access_token &&
+      metadata.userinfo_endpoint
+        ? await this.fetchUserInfo(metadata.userinfo_endpoint, tokenResponse.access_token)
+        : null;
 
-    const claims = { ...(userInfoClaims ?? {}), ...(idTokenClaims ?? {}) } as Record<string, unknown>;
+    const claims = { ...(userInfoClaims ?? {}), ...(idTokenClaims ?? {}) } as Record<
+      string,
+      unknown
+    >;
     if (!claims.sub) {
       throw new UnauthorizedException('Upstream identity provider did not return a subject claim.');
     }
@@ -92,7 +103,9 @@ export class UpstreamOidcService {
     if (connection.discoveryUrl) {
       const response = await fetch(connection.discoveryUrl);
       if (!response.ok) {
-        throw new UnauthorizedException(`Failed to fetch OIDC discovery document for '${connection.id}'.`);
+        throw new UnauthorizedException(
+          `Failed to fetch OIDC discovery document for '${connection.id}'.`,
+        );
       }
       const metadata = (await response.json()) as OidcMetadata;
       this.metadataCache.set(cacheKey, metadata);
@@ -100,7 +113,9 @@ export class UpstreamOidcService {
     }
 
     if (!connection.authorizeUrl || !connection.tokenUrl || !connection.issuer) {
-      throw new BadRequestException(`Connection '${connection.id}' is missing OIDC endpoint configuration.`);
+      throw new BadRequestException(
+        `Connection '${connection.id}' is missing OIDC endpoint configuration.`,
+      );
     }
 
     const metadata: OidcMetadata = {
@@ -153,7 +168,9 @@ export class UpstreamOidcService {
     nonce?: string,
   ): Promise<Record<string, unknown>> {
     if (!metadata.jwks_uri) {
-      throw new UnauthorizedException(`OIDC connection '${connection.id}' does not expose a JWKS URI.`);
+      throw new UnauthorizedException(
+        `OIDC connection '${connection.id}' does not expose a JWKS URI.`,
+      );
     }
 
     const decoded = jwt.decode(token, { complete: true });
@@ -175,7 +192,10 @@ export class UpstreamOidcService {
     return verified as Record<string, unknown>;
   }
 
-  private async fetchUserInfo(userinfoEndpoint: string, accessToken: string): Promise<Record<string, unknown>> {
+  private async fetchUserInfo(
+    userinfoEndpoint: string,
+    accessToken: string,
+  ): Promise<Record<string, unknown>> {
     const response = await fetch(userinfoEndpoint, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -191,7 +211,7 @@ export class UpstreamOidcService {
 
   private async getPublicKeyForKid(jwksUri: string, kid: string) {
     const jwks = await this.getJwks(jwksUri);
-    const jwk = jwks.find(item => item.kid === kid) ?? jwks[0];
+    const jwk = jwks.find((item) => item.kid === kid) ?? jwks[0];
     if (!jwk) {
       throw new UnauthorizedException('Unable to find a matching upstream JWKS key.');
     }

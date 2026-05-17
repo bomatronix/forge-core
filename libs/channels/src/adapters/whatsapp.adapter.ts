@@ -25,9 +25,14 @@ export class WhatsAppAdapter implements IChannelAdapter {
     },
     required: ['provider'],
   };
-  readonly setupInstructions = 'Choose your WhatsApp provider (Twilio or Meta Cloud API) and fill in the credentials.';
+  readonly setupInstructions =
+    'Choose your WhatsApp provider (Twilio or Meta Cloud API) and fill in the credentials.';
 
-  parseInbound(_raw: unknown, _secret: string | null, _config: ChannelConfig): InboundMessage | null {
+  parseInbound(
+    _raw: unknown,
+    _secret: string | null,
+    _config: ChannelConfig,
+  ): InboundMessage | null {
     throw new Error('WhatsAppAdapter: Not implemented (Phase 3)');
   }
 

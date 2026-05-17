@@ -54,9 +54,7 @@ export function decryptConfig(config: Record<string, unknown>): Record<string, u
 
   const key = getKey();
   if (!key) {
-    throw new Error(
-      'DATA_ENCRYPTION_KEY is required to decrypt channel config but is not set',
-    );
+    throw new Error('DATA_ENCRYPTION_KEY is required to decrypt channel config but is not set');
   }
 
   const encoded = config[ENC_MARKER] as string;

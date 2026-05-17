@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ChannelsService } from './channels.service';
 import { ChannelConversationService } from './conversation.service';
 import { resolveChannelAdapter } from './channel-registry';
@@ -46,11 +41,7 @@ export interface InboundResult {
 // ─── Routing rule condition matcher ───────────────────────────────────────────
 
 /** Matches a routing rule's condition against the inbound message text. */
-function matchesCondition(
-  conditionType: string,
-  conditionValue: unknown,
-  text: string,
-): boolean {
+function matchesCondition(conditionType: string, conditionValue: unknown, text: string): boolean {
   if (conditionType === 'always') return true;
   if (conditionType === 'keyword') {
     const { keywords } = conditionValue as { keywords?: string[] };
@@ -96,7 +87,7 @@ export class InboundService {
   async handleInbound(
     channelId: string,
     rawBody: unknown,
-    headers: Record<string, string>,
+    _headers: Record<string, string>,
   ): Promise<InboundResult | null> {
     // 1. Load channel (throws 404 / 400 if inactive)
     const channelRow = await this.channelsService.findByIdPublic(channelId);

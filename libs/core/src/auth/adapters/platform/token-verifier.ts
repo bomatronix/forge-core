@@ -1,6 +1,10 @@
 import type { AuthTokenVerifier } from '../../contracts';
 import type { AuthSession } from '../../types';
-import { authSessionFromClaims, getAuthHandlerRuntimeConfig, verifyIssuedToken } from '../../platform-tokens';
+import {
+  authSessionFromClaims,
+  getAuthHandlerRuntimeConfig,
+  verifyIssuedToken,
+} from '../../platform-tokens';
 
 export interface AuthHandlerTokenVerifierOptions {
   issuer?: string;

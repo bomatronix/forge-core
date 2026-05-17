@@ -24,7 +24,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Forge Core — Auth Handler')
-    .setDescription('OAuth 2.0 / OIDC gateway for Forge Core. These routes are public and mint or verify auth-handler-issued platform tokens.')
+    .setDescription(
+      'OAuth 2.0 / OIDC gateway for Forge Core. These routes are public and mint or verify auth-handler-issued platform tokens.',
+    )
     .setVersion('0.0.1')
     .addOAuth2({
       type: 'oauth2',

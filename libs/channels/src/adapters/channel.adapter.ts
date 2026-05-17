@@ -1,27 +1,20 @@
 import * as crypto from 'crypto';
 
-export type ChannelType =
-  | 'test'
-  | 'webhook'
-  | 'slack'
-  | 'email'
-  | 'sms'
-  | 'whatsapp'
-  | 'website';
+export type ChannelType = 'test' | 'webhook' | 'slack' | 'email' | 'sms' | 'whatsapp' | 'website';
 
 export interface InboundMessage {
   channelType: ChannelType;
   workspaceChannelId: string;
-  fromId: string;           // stable user identifier in the external platform
-  threadRef?: string;       // Slack thread_ts, WhatsApp wa_id, etc.
+  fromId: string; // stable user identifier in the external platform
+  threadRef?: string; // Slack thread_ts, WhatsApp wa_id, etc.
   text: string;
   attachments?: { type: string; url?: string; content?: string }[];
-  raw: unknown;             // original platform payload, stored in message metadata
+  raw: unknown; // original platform payload, stored in message metadata
 }
 
 export interface OutboundMessage {
   text: string;
-  threadRef?: string;       // reply in-thread where supported
+  threadRef?: string; // reply in-thread where supported
   conversationId: string;
 }
 
@@ -29,18 +22,14 @@ export type ChannelConfig = Record<string, unknown>;
 
 export interface IChannelAdapter {
   readonly type: ChannelType;
-  readonly name: string;                                // display name, e.g. "Slack"
-  readonly iconSlug: string;                            // for UI icon lookup
+  readonly name: string; // display name, e.g. "Slack"
+  readonly iconSlug: string; // for UI icon lookup
   readonly capabilities: ('send' | 'receive')[];
-  readonly configSchema: Record<string, unknown>;       // JSON Schema — drives setup form
-  readonly setupInstructions: string;                   // markdown shown in setup wizard
+  readonly configSchema: Record<string, unknown>; // JSON Schema — drives setup form
+  readonly setupInstructions: string; // markdown shown in setup wizard
 
   /** Normalize raw webhook payload. Return null if invalid or should be ignored. */
-  parseInbound(
-    raw: unknown,
-    secret: string | null,
-    config: ChannelConfig,
-  ): InboundMessage | null;
+  parseInbound(raw: unknown, secret: string | null, config: ChannelConfig): InboundMessage | null;
 
   /** Publish a reply back to the external platform. */
   send(message: OutboundMessage, config: ChannelConfig): Promise<void>;
@@ -70,10 +59,7 @@ export function verifyHmac(
   algo: 'sha1' | 'sha256',
 ): boolean {
   try {
-    const expected = crypto
-      .createHmac(algo, secret)
-      .update(payload)
-      .digest('hex');
+    const expected = crypto.createHmac(algo, secret).update(payload).digest('hex');
     const sigBuf = Buffer.from(signature);
     const expBuf = Buffer.from(expected);
     if (sigBuf.length !== expBuf.length) return false;

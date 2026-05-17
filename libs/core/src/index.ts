@@ -7,7 +7,12 @@ export type { CoreModuleOptions } from './core.module';
 export { CORE_MODULE_OPTIONS } from './core.constants';
 
 // Auth — contracts & types
-export type { AuthProviderKey, AuthTokenVerifier, AuthTokenIssuer, TokenResponse } from './auth/contracts';
+export type {
+  AuthProviderKey,
+  AuthTokenVerifier,
+  AuthTokenIssuer,
+  TokenResponse,
+} from './auth/contracts';
 export type { AuthUser, AuthSession } from './auth/types';
 export { AUTH_TOKEN_VERIFIER, AUTH_TOKEN_ISSUER } from './auth/auth.constants';
 export { NotImplementedError } from './auth/not-implemented.error';
@@ -35,10 +40,7 @@ export {
   normalizePem,
   verifyIssuedToken,
 } from './auth/platform-tokens';
-export type {
-  AccessTokenSubject,
-  AuthHandlerRuntimeConfig,
-} from './auth/platform-tokens';
+export type { AccessTokenSubject, AuthHandlerRuntimeConfig } from './auth/platform-tokens';
 export type {
   AuthClientConfig,
   AuthorizationCodeRecord,
@@ -57,7 +59,10 @@ export type {
 export { CurrentUser } from './auth/decorators/current-user.decorator';
 export { CurrentTenant } from './auth/decorators/current-tenant.decorator';
 export { Public, IS_PUBLIC_KEY } from './auth/decorators/public.decorator';
-export { RequirePermissions, PERMISSIONS_KEY } from './auth/decorators/require-permissions.decorator';
+export {
+  RequirePermissions,
+  PERMISSIONS_KEY,
+} from './auth/decorators/require-permissions.decorator';
 
 // Interceptors
 export { LoggingInterceptor } from './interceptors/logging.interceptor';

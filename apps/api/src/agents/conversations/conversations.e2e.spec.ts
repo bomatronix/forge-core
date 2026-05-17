@@ -216,23 +216,21 @@ function createInMemoryDb(): DbClient {
 
     transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const txInsert = jest.fn((table: unknown) => ({
-        values: jest.fn(
-          async (rawValues: Record<string, unknown> | Record<string, unknown>[]) => {
-            if (table === schema.conversationMessages) {
-              const rows = Array.isArray(rawValues) ? rawValues : [rawValues];
-              for (const v of rows) {
-                messages.push({
-                  id: randomUUID(),
-                  conversationId: (v.conversationId as string) ?? CONV_ID,
-                  role: (v.role as string) ?? 'user',
-                  content: (v.content as string) ?? '',
-                  metadata: (v.metadata as Record<string, unknown>) ?? {},
-                  createdAt: new Date(),
-                });
-              }
+        values: jest.fn(async (rawValues: Record<string, unknown> | Record<string, unknown>[]) => {
+          if (table === schema.conversationMessages) {
+            const rows = Array.isArray(rawValues) ? rawValues : [rawValues];
+            for (const v of rows) {
+              messages.push({
+                id: randomUUID(),
+                conversationId: (v.conversationId as string) ?? CONV_ID,
+                role: (v.role as string) ?? 'user',
+                content: (v.content as string) ?? '',
+                metadata: (v.metadata as Record<string, unknown>) ?? {},
+                createdAt: new Date(),
+              });
             }
-          },
-        ),
+          }
+        }),
       }));
       const txUpdate = jest.fn((table: unknown) => {
         let txSetValues: Record<string, unknown> = {};
@@ -417,10 +415,7 @@ describe('Conversations API (e2e)', () => {
         body: JSON.stringify({ message: 'What can you do?' }),
       });
 
-      const res = await authFetch(
-        baseUrl,
-        `/api/agents/${AGENT_ID}/conversations/${CONV_ID}`,
-      );
+      const res = await authFetch(baseUrl, `/api/agents/${AGENT_ID}/conversations/${CONV_ID}`);
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
@@ -470,10 +465,7 @@ describe('Conversations API (e2e)', () => {
 
       expect(deleteRes.status).toBe(204);
 
-      const getRes = await authFetch(
-        baseUrl,
-        `/api/agents/${AGENT_ID}/conversations/${CONV_ID}`,
-      );
+      const getRes = await authFetch(baseUrl, `/api/agents/${AGENT_ID}/conversations/${CONV_ID}`);
 
       expect(getRes.status).toBe(404);
 

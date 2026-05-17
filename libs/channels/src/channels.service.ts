@@ -1,11 +1,6 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { DRIZZLE_CLIENT, schema } from '@forge-core/core';
 import type { DbClient } from '@forge-core/core';
 import { resolveChannelAdapter, getChannelCatalog } from './channel-registry';
@@ -82,9 +77,7 @@ export interface ChannelCatalogItem {
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
 
-  constructor(
-    @Inject(DRIZZLE_CLIENT) private readonly db: DbClient,
-  ) {}
+  constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DbClient) {}
 
   // ─── Catalog ────────────────────────────────────────────────────────────────
 
@@ -115,12 +108,7 @@ export class ChannelsService {
     const [row] = await this.db
       .select()
       .from(schema.workspaceChannels)
-      .where(
-        and(
-          eq(schema.workspaceChannels.id, id),
-          eq(schema.workspaceChannels.orgId, orgId),
-        ),
-      );
+      .where(and(eq(schema.workspaceChannels.id, id), eq(schema.workspaceChannels.orgId, orgId)));
 
     if (!row) throw new NotFoundException(`Channel ${id} not found`);
     return this.mapChannel(row);
@@ -131,12 +119,7 @@ export class ChannelsService {
     const [row] = await this.db
       .select()
       .from(schema.workspaceChannels)
-      .where(
-        and(
-          eq(schema.workspaceChannels.id, id),
-          eq(schema.workspaceChannels.orgId, orgId),
-        ),
-      );
+      .where(and(eq(schema.workspaceChannels.id, id), eq(schema.workspaceChannels.orgId, orgId)));
 
     if (!row) throw new NotFoundException(`Channel ${id} not found`);
     return { ...row, config: decryptConfig(row.config as Record<string, unknown>) };
@@ -186,17 +169,13 @@ export class ChannelsService {
     if (dto.config !== undefined) updates.config = encryptConfig(dto.config);
     if (dto.webhookSecret !== undefined) updates.webhookSecret = dto.webhookSecret;
     if (dto.status !== undefined) updates.status = dto.status;
-    if (dto.workspaceInstructions !== undefined) updates.workspaceInstructions = dto.workspaceInstructions;
+    if (dto.workspaceInstructions !== undefined)
+      updates.workspaceInstructions = dto.workspaceInstructions;
 
     const [row] = await this.db
       .update(schema.workspaceChannels)
       .set(updates)
-      .where(
-        and(
-          eq(schema.workspaceChannels.id, id),
-          eq(schema.workspaceChannels.orgId, orgId),
-        ),
-      )
+      .where(and(eq(schema.workspaceChannels.id, id), eq(schema.workspaceChannels.orgId, orgId)))
       .returning();
 
     return this.mapChannel(row);
@@ -207,12 +186,7 @@ export class ChannelsService {
 
     await this.db
       .delete(schema.workspaceChannels)
-      .where(
-        and(
-          eq(schema.workspaceChannels.id, id),
-          eq(schema.workspaceChannels.orgId, orgId),
-        ),
-      );
+      .where(and(eq(schema.workspaceChannels.id, id), eq(schema.workspaceChannels.orgId, orgId)));
   }
 
   // ─── Routing Rules ──────────────────────────────────────────────────────────
@@ -306,9 +280,7 @@ export class ChannelsService {
         )
         .returning();
 
-      return inserted
-        .sort((a, b) => a.priority - b.priority)
-        .map(this.mapRule);
+      return inserted.sort((a, b) => a.priority - b.priority).map(this.mapRule);
     });
   }
 
@@ -331,9 +303,7 @@ export class ChannelsService {
 
   // ─── Mappers ────────────────────────────────────────────────────────────────
 
-  private mapChannel(
-    row: typeof schema.workspaceChannels.$inferSelect,
-  ): ChannelRow {
+  private mapChannel(row: typeof schema.workspaceChannels.$inferSelect): ChannelRow {
     return {
       id: row.id,
       orgId: row.orgId,
@@ -348,9 +318,7 @@ export class ChannelsService {
     };
   }
 
-  private mapRule(
-    row: typeof schema.channelRoutingRules.$inferSelect,
-  ): RoutingRuleRow {
+  private mapRule(row: typeof schema.channelRoutingRules.$inferSelect): RoutingRuleRow {
     return {
       id: row.id,
       workspaceChannelId: row.workspaceChannelId,

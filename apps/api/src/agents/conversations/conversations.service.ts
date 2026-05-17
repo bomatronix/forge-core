@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { DRIZZLE_CLIENT, schema } from '@forge-core/core';
@@ -86,11 +82,7 @@ export class ConversationsService {
     }));
   }
 
-  async findOne(
-    orgId: string,
-    agentId: string,
-    convId: string,
-  ): Promise<ConversationWithMessages> {
+  async findOne(orgId: string, agentId: string, convId: string): Promise<ConversationWithMessages> {
     const [conv] = await this.db
       .select()
       .from(schema.conversations)
@@ -152,7 +144,10 @@ export class ConversationsService {
 
     // Load prior messages
     const prior = await this.db
-      .select({ role: schema.conversationMessages.role, content: schema.conversationMessages.content })
+      .select({
+        role: schema.conversationMessages.role,
+        content: schema.conversationMessages.content,
+      })
       .from(schema.conversationMessages)
       .where(eq(schema.conversationMessages.conversationId, convId))
       .orderBy(asc(schema.conversationMessages.createdAt));
@@ -186,7 +181,10 @@ export class ConversationsService {
           conversationId: convId,
           role: 'assistant',
           content: response.content,
-          metadata: { inputTokens: response.usage.inputTokens, outputTokens: response.usage.outputTokens },
+          metadata: {
+            inputTokens: response.usage.inputTokens,
+            outputTokens: response.usage.outputTokens,
+          },
         },
       ]);
 

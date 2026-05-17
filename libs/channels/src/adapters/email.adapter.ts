@@ -25,7 +25,11 @@ export class EmailAdapter implements IChannelAdapter {
   };
   readonly setupInstructions = 'Configure Mailgun inbound routing to point to your webhook URL.';
 
-  parseInbound(_raw: unknown, _secret: string | null, _config: ChannelConfig): InboundMessage | null {
+  parseInbound(
+    _raw: unknown,
+    _secret: string | null,
+    _config: ChannelConfig,
+  ): InboundMessage | null {
     throw new Error('EmailAdapter: Not implemented (Phase 3)');
   }
 

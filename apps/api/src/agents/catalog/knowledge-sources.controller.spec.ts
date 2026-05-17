@@ -109,8 +109,6 @@ describe('Knowledge source controllers', () => {
       selectionsController.update(ORG, AGENT_ID, { sourceSlugs: ['faq-database'] }),
     ).resolves.toEqual([mockSource]);
 
-    expect(mockService.updateSelections).toHaveBeenCalledWith(ORG, AGENT_ID, [
-      'faq-database',
-    ]);
+    expect(mockService.updateSelections).toHaveBeenCalledWith(ORG, AGENT_ID, ['faq-database']);
   });
 });

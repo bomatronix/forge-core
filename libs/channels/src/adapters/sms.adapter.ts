@@ -21,9 +21,14 @@ export class SmsAdapter implements IChannelAdapter {
     },
     required: ['accountSid', 'authToken', 'fromNumber'],
   };
-  readonly setupInstructions = 'Configure your Twilio number webhook URL to point to the URL below.';
+  readonly setupInstructions =
+    'Configure your Twilio number webhook URL to point to the URL below.';
 
-  parseInbound(_raw: unknown, _secret: string | null, _config: ChannelConfig): InboundMessage | null {
+  parseInbound(
+    _raw: unknown,
+    _secret: string | null,
+    _config: ChannelConfig,
+  ): InboundMessage | null {
     throw new Error('SmsAdapter: Not implemented (Phase 3)');
   }
 

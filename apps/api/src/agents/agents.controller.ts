@@ -1,6 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CurrentTenant, RequirePermissions } from '@forge-core/core';
-import { CreateAgentDto, UpdateAgentDto, UpdateStatusDto, type AgentStatus } from '@forge-core/common';
+import {
+  CreateAgentDto,
+  UpdateAgentDto,
+  UpdateStatusDto,
+  type AgentStatus,
+} from '@forge-core/common';
 import { AgentsService } from './agents.service';
 
 @Controller('agents')

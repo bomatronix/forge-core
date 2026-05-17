@@ -18,10 +18,7 @@ export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
   @Post()
-  create(
-    @CurrentTenant() orgId: string,
-    @Param('id') agentId: string,
-  ) {
+  create(@CurrentTenant() orgId: string, @Param('id') agentId: string) {
     return this.conversationsService.create(orgId, agentId);
   }
 

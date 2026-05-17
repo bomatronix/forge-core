@@ -24,7 +24,7 @@ import { resolveSecret } from '@forge-core/core/lambda/resolve-secrets';
 // TODO(auth): Revisit shared logging for standalone auth paths so this Lambda and the
 // low-level auth adapters can use one consistent approach without unnecessary Nest coupling.
 function logError(message: string, error: unknown): void {
-  const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
   process.stderr.write(`${message} ${detail}\n`);
 }
 

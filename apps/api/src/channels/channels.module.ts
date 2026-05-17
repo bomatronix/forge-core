@@ -17,7 +17,7 @@ import { TestTriggerController } from './test-trigger.controller';
 @Module({
   imports: [
     ChannelsCoreModule, // provides ChannelsService, ChannelConversationService
-    AgentsModule,       // provides AgentsService, ChatService, KnowledgeService
+    AgentsModule, // provides AgentsService, ChatService, KnowledgeService
   ],
   controllers: [ChannelsController, InboundController, TestTriggerController],
   providers: [

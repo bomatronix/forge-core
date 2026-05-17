@@ -57,11 +57,7 @@ export class ChannelsController {
 
   @Patch(':id')
   @RequirePermissions('agents:write')
-  update(
-    @CurrentTenant() orgId: string,
-    @Param('id') id: string,
-    @Body() dto: UpdateChannelDto,
-  ) {
+  update(@CurrentTenant() orgId: string, @Param('id') id: string, @Body() dto: UpdateChannelDto) {
     return this.channelsService.update(orgId, id, dto);
   }
 
@@ -93,10 +89,7 @@ export class ChannelsController {
 
   @Get(':channelId/routing-rules')
   @RequirePermissions('agents:read')
-  findRoutingRules(
-    @CurrentTenant() orgId: string,
-    @Param('channelId') channelId: string,
-  ) {
+  findRoutingRules(@CurrentTenant() orgId: string, @Param('channelId') channelId: string) {
     return this.channelsService.findRoutingRules(orgId, channelId);
   }
 
@@ -143,10 +136,7 @@ export class ChannelsController {
 
   @Get('conversations/:convId/messages')
   @RequirePermissions('agents:read')
-  getConversationMessages(
-    @CurrentTenant() orgId: string,
-    @Param('convId') convId: string,
-  ) {
+  getConversationMessages(@CurrentTenant() orgId: string, @Param('convId') convId: string) {
     return this.channelConvService.findMessagesByConversation(orgId, convId);
   }
 }
