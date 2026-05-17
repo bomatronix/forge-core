@@ -28,7 +28,12 @@ function createMetricsDb(): DbClient {
 
 const verifier: AuthTokenVerifier = {
   verifyToken: jest.fn(async () => ({
-    user: { id: 'user_metrics', email: 'metrics@example.com', name: 'Metrics User', avatarUrl: null },
+    user: {
+      id: 'user_metrics',
+      email: 'metrics@example.com',
+      name: 'Metrics User',
+      avatarUrl: null,
+    },
     tenantId: ORG,
     permissions: ['agents:read'],
   })),

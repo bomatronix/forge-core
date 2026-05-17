@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { getAuthHandlerRuntimeConfig, type AuthHandlerRuntimeConfig } from '@forge-core/core/auth/platform-tokens';
+import {
+  getAuthHandlerRuntimeConfig,
+  type AuthHandlerRuntimeConfig,
+} from '@forge-core/core/auth/platform-tokens';
 import type { AuthClientConfig, UpstreamConnectionConfig } from '@forge-core/core/auth/oauth.types';
 
 const DEFAULT_CLIENTS: AuthClientConfig[] = [
@@ -92,7 +95,10 @@ function parseExtraRedirectUris(): Map<string, string[]> {
   return map;
 }
 
-function mergeClients(defaultClients: AuthClientConfig[], configuredClients: AuthClientConfig[]): AuthClientConfig[] {
+function mergeClients(
+  defaultClients: AuthClientConfig[],
+  configuredClients: AuthClientConfig[],
+): AuthClientConfig[] {
   const merged = new Map<string, AuthClientConfig>();
 
   for (const client of defaultClients) {
@@ -135,7 +141,11 @@ function buildClerkConnection(): UpstreamConnectionConfig | null {
     discoveryUrl,
     clientId,
     clientSecret: process.env.AUTH_HANDLER_CLERK_CLIENT_SECRET?.trim(),
-    scopes: process.env.AUTH_HANDLER_CLERK_SCOPES?.trim().split(/\s+/) ?? ['openid', 'profile', 'email'],
+    scopes: process.env.AUTH_HANDLER_CLERK_SCOPES?.trim().split(/\s+/) ?? [
+      'openid',
+      'profile',
+      'email',
+    ],
   };
 }
 
@@ -189,7 +199,7 @@ export class AuthHandlerConfigService {
   }
 
   getClient(clientId: string): AuthClientConfig | undefined {
-    return this.clients.find(client => client.clientId === clientId);
+    return this.clients.find((client) => client.clientId === clientId);
   }
 
   getConnections(): UpstreamConnectionConfig[] {
@@ -197,6 +207,6 @@ export class AuthHandlerConfigService {
   }
 
   getConnection(connectionId: string): UpstreamConnectionConfig | undefined {
-    return this.connections.find(connection => connection.id === connectionId);
+    return this.connections.find((connection) => connection.id === connectionId);
   }
 }

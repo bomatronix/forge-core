@@ -54,9 +54,7 @@ describe('migrator bootstrapRolesForPool', () => {
 
     await bootstrapRolesForPool(pool, baseParams);
 
-    expect(sqlCalls(query)).toEqual(
-      expect.arrayContaining(['REVOKE rds_iam FROM "app"']),
-    );
+    expect(sqlCalls(query)).toEqual(expect.arrayContaining(['REVOKE rds_iam FROM "app"']));
   });
 
   it('grants rds_iam to migrator role (direct IAM connection bypassing proxy)', async () => {
@@ -64,9 +62,7 @@ describe('migrator bootstrapRolesForPool', () => {
 
     await bootstrapRolesForPool(pool, baseParams);
 
-    expect(sqlCalls(query)).toEqual(
-      expect.arrayContaining(['GRANT rds_iam TO "migrator"']),
-    );
+    expect(sqlCalls(query)).toEqual(expect.arrayContaining(['GRANT rds_iam TO "migrator"']));
   });
 
   it('repairs accidental app, migrator, and rds_iam memberships from the admin user', async () => {

@@ -25,7 +25,9 @@
       "@forge-core/common": ["libs/common/src"],
       "@forge-core/common/*": ["libs/common/src/*"],
       "@forge-core/core": ["libs/core/src"],
-      "@forge-core/core/*": ["libs/core/src/*"]
+      "@forge-core/core/*": ["libs/core/src/*"],
+      "@forge-core/channels": ["libs/channels/src"],
+      "@forge-core/channels/*": ["libs/channels/src/*"]
     }
   }
 }

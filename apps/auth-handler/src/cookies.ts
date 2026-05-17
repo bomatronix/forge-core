@@ -14,7 +14,9 @@ function deriveKey(secret: string): Buffer {
 }
 
 function encode(value: Buffer | string): string {
-  return Buffer.isBuffer(value) ? value.toString('base64url') : Buffer.from(value, 'utf8').toString('base64url');
+  return Buffer.isBuffer(value)
+    ? value.toString('base64url')
+    : Buffer.from(value, 'utf8').toString('base64url');
 }
 
 function decode(value: string): Buffer {
@@ -61,7 +63,8 @@ export function parseCookieHeader(header: string | undefined): Record<string, st
 export function serializeCookie(name: string, value: string, options: CookieOptions = {}): string {
   const segments = [`${name}=${value}`];
 
-  if (options.maxAge !== undefined) segments.push(`Max-Age=${Math.max(0, Math.floor(options.maxAge))}`);
+  if (options.maxAge !== undefined)
+    segments.push(`Max-Age=${Math.max(0, Math.floor(options.maxAge))}`);
   segments.push(`Path=${options.path ?? '/auth'}`);
   if (options.httpOnly !== false) segments.push('HttpOnly');
   if (options.sameSite) segments.push(`SameSite=${options.sameSite}`);

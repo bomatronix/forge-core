@@ -5,7 +5,7 @@ import type { AuthSession } from '../../types';
 // TODO(auth): Revisit shared logging for low-level auth adapters and standalone auth paths
 // so we can standardize this without forcing Nest Logger into every runtime context.
 function logError(message: string, detail: unknown): void {
-  const rendered = detail instanceof Error ? detail.stack ?? detail.message : String(detail);
+  const rendered = detail instanceof Error ? (detail.stack ?? detail.message) : String(detail);
   process.stderr.write(`${message} ${rendered}\n`);
 }
 
@@ -109,14 +109,17 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
       return null;
     }
 
-    const verifyResponse = await fetch('https://api.clerk.com/oauth_applications/access_tokens/verify', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        'Content-Type': 'application/json',
+    const verifyResponse = await fetch(
+      'https://api.clerk.com/oauth_applications/access_tokens/verify',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ access_token: token }),
       },
-      body: JSON.stringify({ access_token: token }),
-    });
+    );
 
     if (!verifyResponse.ok) {
       return null;
@@ -144,7 +147,9 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
     }
 
     const claims = (await userinfoResponse.json()) as Record<string, unknown>;
-    const userId = this.readStringClaim(claims, ['sub']) ?? this.readStringClaim(verifyPayload, ['user_id', 'sub']);
+    const userId =
+      this.readStringClaim(claims, ['sub']) ??
+      this.readStringClaim(verifyPayload, ['user_id', 'sub']);
 
     if (!userId) {
       return null;
@@ -176,7 +181,9 @@ export class ClerkTokenVerifier implements AuthTokenVerifier {
   private readScopeClaim(claims: Record<string, unknown>): string[] {
     const scopes = claims['scopes'];
     if (Array.isArray(scopes)) {
-      return scopes.filter((value): value is string => typeof value === 'string' && value.length > 0);
+      return scopes.filter(
+        (value): value is string => typeof value === 'string' && value.length > 0,
+      );
     }
 
     const scope = claims['scope'];

@@ -43,6 +43,20 @@
       "when": 1778868086476,
       "tag": "0005_add_agent_types_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778944725374,
+      "tag": "0006_add_conversations_unified",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778948000000,
+      "tag": "0007_add_channel_constraints",
+      "breakpoints": true
     }
   ]
 }

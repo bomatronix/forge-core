@@ -172,7 +172,11 @@ export class AuthHandlerController {
   @ApiQuery({ name: 'client_id', required: true })
   @ApiQuery({ name: 'redirect_uri', required: true })
   @ApiQuery({ name: 'response_type', required: true, example: 'code' })
-  @ApiQuery({ name: 'scope', required: false, example: 'openid profile email offline_access agents:read' })
+  @ApiQuery({
+    name: 'scope',
+    required: false,
+    example: 'openid profile email offline_access agents:read',
+  })
   @ApiQuery({ name: 'state', required: false })
   @ApiQuery({ name: 'nonce', required: false })
   @ApiQuery({ name: 'code_challenge', required: false })
@@ -245,7 +249,9 @@ export class AuthHandlerController {
   @Post('login')
   @Public()
   @HttpCode(200)
-  @ApiOperation({ summary: 'Credential-based login — verifies email/password and issues an authorization code' })
+  @ApiOperation({
+    summary: 'Credential-based login — verifies email/password and issues an authorization code',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -282,7 +288,10 @@ export class AuthHandlerController {
     schema: {
       type: 'object',
       properties: {
-        grant_type: { type: 'string', enum: ['authorization_code', 'refresh_token', 'client_credentials'] },
+        grant_type: {
+          type: 'string',
+          enum: ['authorization_code', 'refresh_token', 'client_credentials'],
+        },
         code: { type: 'string' },
         redirect_uri: { type: 'string' },
         code_verifier: { type: 'string' },
@@ -318,7 +327,9 @@ export class AuthHandlerController {
 
   @Get('logout')
   @Public()
-  @ApiOperation({ summary: 'Clear auth-handler session and redirect (GET/browser redirect version)' })
+  @ApiOperation({
+    summary: 'Clear auth-handler session and redirect (GET/browser redirect version)',
+  })
   @ApiQuery({ name: 'return_to', required: false })
   logout_get(
     @Req() request: Request,
@@ -346,10 +357,7 @@ export class AuthHandlerController {
     @Res() response: Response,
     @Body() rawBody: Record<string, unknown>,
   ): void {
-    const result = this.providerService.logout(
-      request,
-      this.normalizeParams(rawBody).return_to,
-    );
+    const result = this.providerService.logout(request, this.normalizeParams(rawBody).return_to);
     this.applyCookies(response, result.cookies);
     response.status(200).json({ redirect_to: result.redirectUrl });
   }
@@ -362,7 +370,9 @@ export class AuthHandlerController {
   @ApiResponse({ status: 200, type: TokenResponseDto })
   devToken(@Body() rawBody: Record<string, unknown>): TokenResponseDto {
     if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('The development token endpoint is not available in production.');
+      throw new ForbiddenException(
+        'The development token endpoint is not available in production.',
+      );
     }
 
     const params = this.normalizeParams(rawBody);
@@ -510,7 +520,7 @@ export class AuthHandlerController {
       ? rawScope.trim().split(/\s+/)
       : ['openid', 'profile', 'email', 'offline_access', 'agents:read'];
 
-    const invalid = scope.filter(item => !client.scopes.includes(item));
+    const invalid = scope.filter((item) => !client.scopes.includes(item));
     if (invalid.length > 0) {
       throw new BadRequestException(`Requested scope is not allowed: ${invalid.join(', ')}`);
     }
@@ -519,7 +529,9 @@ export class AuthHandlerController {
   }
 
   private resolveDevPermissions(scope: string[]): string[] {
-    const permissions = scope.filter(item => !['openid', 'profile', 'email', 'offline_access'].includes(item));
+    const permissions = scope.filter(
+      (item) => !['openid', 'profile', 'email', 'offline_access'].includes(item),
+    );
     return permissions.length > 0 ? permissions : ['*'];
   }
 
@@ -539,7 +551,9 @@ export class AuthHandlerController {
   }
 
   private async verifyClerkOauthAccessToken(token: string): Promise<AuthSession | null> {
-    const secretKey = (this.configService.getConnection('clerk')?.secretKey ?? process.env.AUTH_SECRET_KEY)?.trim();
+    const secretKey = (
+      this.configService.getConnection('clerk')?.secretKey ?? process.env.AUTH_SECRET_KEY
+    )?.trim();
     const discoveryUrl = process.env.AUTH_HANDLER_CLERK_DISCOVERY_URL?.trim();
 
     if (!secretKey || !discoveryUrl) {
@@ -584,7 +598,9 @@ export class AuthHandlerController {
     }
 
     const claims = (await userinfoResponse.json()) as Record<string, unknown>;
-    const userId = this.readStringClaim(claims, ['sub']) ?? this.readStringClaim(verifyPayload, ['user_id', 'sub']);
+    const userId =
+      this.readStringClaim(claims, ['sub']) ??
+      this.readStringClaim(verifyPayload, ['user_id', 'sub']);
 
     if (!userId) {
       return null;
@@ -602,10 +618,7 @@ export class AuthHandlerController {
     };
   }
 
-  private readStringClaim(
-    claims: Record<string, unknown>,
-    keys: string[],
-  ): string | null {
+  private readStringClaim(claims: Record<string, unknown>, keys: string[]): string | null {
     for (const key of keys) {
       const value = claims[key];
       if (typeof value === 'string' && value.trim()) {
@@ -619,7 +632,9 @@ export class AuthHandlerController {
   private readScopeClaim(claims: Record<string, unknown>): string[] {
     const scopes = claims['scopes'];
     if (Array.isArray(scopes)) {
-      return scopes.filter((value): value is string => typeof value === 'string' && value.length > 0);
+      return scopes.filter(
+        (value): value is string => typeof value === 'string' && value.length > 0,
+      );
     }
 
     const scope = claims['scope'];

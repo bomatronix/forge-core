@@ -77,7 +77,9 @@ describe('AgentsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     db = createDbMock();
-    knowledgeSourcesService = { seedSelectionsForCreatedAgent: jest.fn().mockResolvedValue(undefined) };
+    knowledgeSourcesService = {
+      seedSelectionsForCreatedAgent: jest.fn().mockResolvedValue(undefined),
+    };
     service = new AgentsService(db.db, knowledgeSourcesService as never);
   });
 
@@ -153,9 +155,7 @@ describe('AgentsService', () => {
     });
 
     it('throws and skips the database when the share token is missing', async () => {
-      await expect(service.findPublicLive(AGENT_ID, '')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(service.findPublicLive(AGENT_ID, '')).rejects.toBeInstanceOf(NotFoundException);
       expect(db.select).not.toHaveBeenCalled();
     });
 
@@ -258,9 +258,9 @@ describe('AgentsService', () => {
       db.selectWhere.mockResolvedValue([agentRow({ status: 'draft' })]);
       db.updateReturning.mockResolvedValue([]);
 
-      await expect(
-        service.updateStatus(ORG, AGENT_ID, { status: 'live' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.updateStatus(ORG, AGENT_ID, { status: 'live' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
 
       // UPDATE was attempted (transition was valid) but returned no rows
       expect(db.update).toHaveBeenCalledTimes(1);

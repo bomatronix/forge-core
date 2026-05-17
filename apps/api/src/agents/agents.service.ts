@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { eq, and, ilike, isNull, or } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { DRIZZLE_CLIENT, DbClient, schema } from '@forge-core/core';
@@ -188,7 +194,9 @@ export class AgentsService {
       .set({
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.templateId !== undefined && { templateId: dto.templateId }),
-        ...(dto.agentType !== undefined && { agentTypeSlug: this.normalizeAgentType(dto.agentType) }),
+        ...(dto.agentType !== undefined && {
+          agentTypeSlug: this.normalizeAgentType(dto.agentType),
+        }),
         ...(dto.uiConfig !== undefined && { uiConfig: dto.uiConfig }),
         ...(dto.aiConfig !== undefined && { aiConfig: dto.aiConfig }),
         updatedAt: new Date(),
@@ -228,9 +236,7 @@ export class AgentsService {
       .returning();
 
     if (!row) {
-      throw new ConflictException(
-        `Agent ${id} status was modified concurrently — please retry`,
-      );
+      throw new ConflictException(`Agent ${id} status was modified concurrently — please retry`);
     }
 
     return row;

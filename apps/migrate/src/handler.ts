@@ -248,7 +248,9 @@ export async function bootstrapRolesForPool(
 
   const appUserSecretArn = process.env.DB_APP_USER_SECRET_ARN?.trim();
   if (appUserSecretArn) {
-    const appSecretResp = await secrets.send(new GetSecretValueCommand({ SecretId: appUserSecretArn }));
+    const appSecretResp = await secrets.send(
+      new GetSecretValueCommand({ SecretId: appUserSecretArn }),
+    );
     const { password } = JSON.parse(appSecretResp.SecretString!) as { password: string };
     await pool.query(`ALTER USER ${app} WITH PASSWORD '${password.replace(/'/g, "''")}'`);
   }

@@ -4,6 +4,7 @@ import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
 import { AgentsModule } from './agents/agents.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { AppChannelsModule } from './channels/channels.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { MetricsModule } from './metrics/metrics.module';
     DrizzleModule.forRootAsync(),
     AgentsModule,
     MetricsModule,
+    AppChannelsModule,
   ],
   controllers: [AuthController, HealthController],
 })

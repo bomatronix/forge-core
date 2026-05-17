@@ -17,6 +17,8 @@ import {
   KnowledgeSourceOptionsController,
 } from './catalog/knowledge-sources.controller';
 import { KnowledgeSourcesService } from './catalog/knowledge-sources.service';
+import { ConversationsController } from './conversations/conversations.controller';
+import { ConversationsService } from './conversations/conversations.service';
 
 @Module({
   controllers: [
@@ -29,6 +31,7 @@ import { KnowledgeSourcesService } from './catalog/knowledge-sources.service';
     KnowledgeSourceOptionsController,
     AgentTypeKnowledgeSourcesController,
     AgentKnowledgeSourcesController,
+    ConversationsController,
   ],
   providers: [
     AgentsService,
@@ -38,6 +41,8 @@ import { KnowledgeSourcesService } from './catalog/knowledge-sources.service';
     AgentTypesService,
     AgentTemplatesService,
     KnowledgeSourcesService,
+    ConversationsService,
   ],
+  exports: [ChatService, AgentsService, KnowledgeService],
 })
 export class AgentsModule {}

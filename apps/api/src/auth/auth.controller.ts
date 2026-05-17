@@ -40,7 +40,9 @@ export class AuthController {
     @CurrentTenant() tenantId: string | null,
     @Req() request: Request,
   ): AuthSessionDto {
-    const permissions = ((request as unknown as Record<string, unknown>)['permissions'] as string[] | undefined) ?? [];
+    const permissions =
+      ((request as unknown as Record<string, unknown>)['permissions'] as string[] | undefined) ??
+      [];
 
     return {
       user: {

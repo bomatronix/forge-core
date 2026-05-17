@@ -39,7 +39,10 @@ export const handler: Handler = async (event: APIGatewayProxyEvent, context: Con
   // For a nested {proxy+} resource (e.g. "auth/{proxy+}"), the proxy param captures only
   // the sub-path (e.g. ".well-known/openid-configuration"), stripping the "auth/" prefix.
   // Clearing it forces serverless-express to fall back to event.path (full path including /auth).
-  const normalizedEvent = { ...event, pathParameters: { ...event.pathParameters, proxy: undefined } };
+  const normalizedEvent = {
+    ...event,
+    pathParameters: { ...event.pathParameters, proxy: undefined },
+  };
   const resolvedHandler = await handlerPromise;
   return resolvedHandler(normalizedEvent as typeof event, context, callback);
 };

@@ -37,10 +37,7 @@ export class KnowledgeSourcesService {
     return row;
   }
 
-  async listOptions(
-    orgId: string,
-    agentTypeSlug?: string,
-  ): Promise<KnowledgeSourceOptionDto[]> {
+  async listOptions(orgId: string, agentTypeSlug?: string): Promise<KnowledgeSourceOptionDto[]> {
     if (agentTypeSlug) {
       return this.listOptionsForAgentType(orgId, agentTypeSlug);
     }
@@ -48,9 +45,7 @@ export class KnowledgeSourcesService {
     const rows = await this.db
       .select()
       .from(schema.knowledgeSourceOptions)
-      .where(
-        and(eq(schema.knowledgeSourceOptions.enabled, true), this.visibilityCondition(orgId)),
-      )
+      .where(and(eq(schema.knowledgeSourceOptions.enabled, true), this.visibilityCondition(orgId)))
       .orderBy(
         asc(schema.knowledgeSourceOptions.position),
         asc(schema.knowledgeSourceOptions.name),
@@ -307,7 +302,7 @@ export class KnowledgeSourcesService {
         knowledgeSourceOptionId: option.id,
         position,
       })),
-      );
+    );
   }
 
   private async optionsFromOrderedIds(
@@ -356,10 +351,7 @@ export class KnowledgeSourcesService {
     return [...new Set(sourceSlugs.map((slug) => slug.trim()).filter(Boolean))];
   }
 
-  private assertAllSlugsResolved(
-    sourceSlugs: string[],
-    options: KnowledgeSourceOptionRow[],
-  ): void {
+  private assertAllSlugsResolved(sourceSlugs: string[], options: KnowledgeSourceOptionRow[]): void {
     const foundSlugs = new Set(options.map((option) => option.slug));
     const missingSlugs = sourceSlugs.filter((slug) => !foundSlugs.has(slug));
     if (missingSlugs.length > 0) {

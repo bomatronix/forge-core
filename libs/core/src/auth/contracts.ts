@@ -34,8 +34,8 @@ export type AuthProviderKey =
 export interface TokenResponse {
   access_token: string;
   token_type: 'bearer';
-  expires_in: number;  // seconds
-  scope?: string;      // space-separated granted scopes (OAuth2 standard)
+  expires_in: number; // seconds
+  scope?: string; // space-separated granted scopes (OAuth2 standard)
 }
 
 /**

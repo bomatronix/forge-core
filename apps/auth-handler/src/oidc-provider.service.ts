@@ -65,11 +65,7 @@ export class OidcProviderService {
       token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic', 'none'],
       code_challenge_methods_supported: ['S256', 'plain'],
       scopes_supported: Array.from(
-        new Set(
-          this.configService
-            .getClients()
-            .flatMap(client => client.scopes),
-        ),
+        new Set(this.configService.getClients().flatMap((client) => client.scopes)),
       ),
       claims_supported: ['sub', 'email', 'name', 'picture', 'org_id', 'permissions'],
       subject_types_supported: ['public'],
@@ -209,7 +205,7 @@ export class OidcProviderService {
       <h1>Authorize ${this.escapeHtml(client.name)}</h1>
       <p>Signed in as <strong>${this.escapeHtml(session.email ?? session.sub)}</strong>.</p>
       <p>This client is requesting access to:</p>
-      <ul>${pending.scope.map(scope => `<li><code>${this.escapeHtml(scope)}</code></li>`).join('')}</ul>
+      <ul>${pending.scope.map((scope) => `<li><code>${this.escapeHtml(scope)}</code></li>`).join('')}</ul>
       <form method="post" action="/auth/consent">
         <button type="submit" name="decision" value="approve">Approve</button>
         <button type="submit" name="decision" value="deny">Deny</button>
@@ -219,10 +215,7 @@ export class OidcProviderService {
 </html>`;
   }
 
-  async submitConsent(
-    request: Request,
-    decision: string | undefined,
-  ): Promise<RedirectResult> {
+  async submitConsent(request: Request, decision: string | undefined): Promise<RedirectResult> {
     const pending = this.requirePendingAuthorization(request);
     const session = this.requireBrowserSession(request);
 
@@ -399,12 +392,16 @@ export class OidcProviderService {
     connection: UpstreamConnectionConfig,
   ): Promise<BrowserSession> {
     if (connection.type !== 'oidc') {
-      throw new BadRequestException(`Credential login is not supported for connection type '${connection.type}'.`);
+      throw new BadRequestException(
+        `Credential login is not supported for connection type '${connection.type}'.`,
+      );
     }
 
     const secretKey = (connection.secretKey ?? process.env.AUTH_SECRET_KEY)?.trim();
     if (!secretKey) {
-      throw new BadRequestException('Server auth key is not configured. Cannot verify credentials.');
+      throw new BadRequestException(
+        'Server auth key is not configured. Cannot verify credentials.',
+      );
     }
 
     const clerk = createClerkClient({ secretKey });
@@ -421,7 +418,8 @@ export class OidcProviderService {
       throw new UnauthorizedException('Invalid credentials.');
     }
 
-    const primaryEmail = user.emailAddresses.find(e => e.id === user.primaryEmailAddressId)?.emailAddress ?? email;
+    const primaryEmail =
+      user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress ?? email;
     const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || null;
 
     const memberships = await clerk.users.getOrganizationMembershipList({ userId: user.id });
@@ -487,9 +485,10 @@ export class OidcProviderService {
         });
       }
 
-      const expected = record.codeChallengeMethod === 'S256'
-        ? createHash('sha256').update(verifier).digest('base64url')
-        : verifier;
+      const expected =
+        record.codeChallengeMethod === 'S256'
+          ? createHash('sha256').update(verifier).digest('base64url')
+          : verifier;
 
       if (expected !== record.codeChallenge) {
         throw new BadRequestException({
@@ -648,7 +647,7 @@ export class OidcProviderService {
     const requestedScope = this.resolveRequestedScope(
       client,
       body.scope,
-      client.scopes.filter(scope => !STANDARD_SCOPES.has(scope)),
+      client.scopes.filter((scope) => !STANDARD_SCOPES.has(scope)),
     );
     const permissions = this.extractPermissionScopes(requestedScope);
     const runtime = this.configService.getRuntimeConfig();
@@ -769,7 +768,8 @@ export class OidcProviderService {
   }
 
   private resolveConnection(connectionId: string | undefined, client: AuthClientConfig) {
-    const resolved = connectionId || client.defaultConnectionId || this.configService.getConnections()[0]?.id;
+    const resolved =
+      connectionId || client.defaultConnectionId || this.configService.getConnections()[0]?.id;
     if (!resolved) {
       throw new BadRequestException('No upstream connection is configured.');
     }
@@ -796,7 +796,10 @@ export class OidcProviderService {
     return 'code';
   }
 
-  private ensureGrant(client: AuthClientConfig, grant: 'authorization_code' | 'refresh_token' | 'client_credentials'): void {
+  private ensureGrant(
+    client: AuthClientConfig,
+    grant: 'authorization_code' | 'refresh_token' | 'client_credentials',
+  ): void {
     if (!client.grantTypes.includes(grant)) {
       throw new BadRequestException(`Client '${client.clientId}' is not allowed to use ${grant}.`);
     }
@@ -807,11 +810,9 @@ export class OidcProviderService {
     requestedScope: string | undefined,
     fallback: string[] = ['openid', 'profile', 'email'],
   ): string[] {
-    const scope = requestedScope?.trim()
-      ? requestedScope.trim().split(/\s+/)
-      : fallback;
+    const scope = requestedScope?.trim() ? requestedScope.trim().split(/\s+/) : fallback;
 
-    const invalid = scope.filter(item => !client.scopes.includes(item));
+    const invalid = scope.filter((item) => !client.scopes.includes(item));
     if (invalid.length > 0) {
       throw new BadRequestException(`Requested scope is not allowed: ${invalid.join(', ')}`);
     }
@@ -827,7 +828,9 @@ export class OidcProviderService {
     return value;
   }
 
-  private parseBasicAuthorization(authorizationHeader: string | undefined): { clientId: string; clientSecret: string } | null {
+  private parseBasicAuthorization(
+    authorizationHeader: string | undefined,
+  ): { clientId: string; clientSecret: string } | null {
     if (!authorizationHeader?.startsWith('Basic ')) return null;
     const decoded = Buffer.from(authorizationHeader.slice(6), 'base64').toString('utf8');
     const separatorIndex = decoded.indexOf(':');
@@ -885,7 +888,7 @@ export class OidcProviderService {
   }
 
   private extractPermissionScopes(scope: string[]): string[] {
-    return scope.filter(item => !STANDARD_SCOPES.has(item));
+    return scope.filter((item) => !STANDARD_SCOPES.has(item));
   }
 
   private extractBearerToken(authorizationHeader: string | undefined): string {
@@ -927,11 +930,7 @@ export class OidcProviderService {
   }
 
   private createFlowCookie(pending: PendingAuthorizationRequest): string {
-    return this.serializeEncryptedCookie(
-      FLOW_COOKIE,
-      pending,
-      10 * 60,
-    );
+    return this.serializeEncryptedCookie(FLOW_COOKIE, pending, 10 * 60);
   }
 
   private clearFlowCookie(): string {
@@ -939,11 +938,7 @@ export class OidcProviderService {
   }
 
   private createSessionCookie(session: BrowserSession): string {
-    return this.serializeEncryptedCookie(
-      SESSION_COOKIE,
-      session,
-      60 * 60 * 8,
-    );
+    return this.serializeEncryptedCookie(SESSION_COOKIE, session, 60 * 60 * 8);
   }
 
   private clearSessionCookie(): string {
@@ -973,7 +968,8 @@ export class OidcProviderService {
     const configuredIssuer = process.env.AUTH_HANDLER_ISSUER?.trim();
     if (configuredIssuer) return configuredIssuer;
 
-    const protocol = (request.headers['x-forwarded-proto'] as string | undefined) ?? request.protocol;
+    const protocol =
+      (request.headers['x-forwarded-proto'] as string | undefined) ?? request.protocol;
     const host = (request.headers['x-forwarded-host'] as string | undefined) ?? request.get('host');
     return `${protocol}://${host}/auth`;
   }
