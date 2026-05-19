@@ -73,9 +73,81 @@ export interface ChannelCatalogItem {
   setupInstructions: string;
 }
 
+interface WebsiteOriginCache {
+  expiresAt: number;
+  allowedDomains: Set<string>;
+  domainsByOrgAndAgent: Map<string, Set<string>>;
+}
+
+const WEBSITE_ORIGIN_CACHE_TTL_MS = 30_000;
+
+function websiteOriginCacheKey(orgId: string, agentId: string): string {
+  return `${orgId}:${agentId}`;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function normalizeAllowedDomain(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new BadRequestException('Allowed domains must be strings');
+  }
+
+  const domain = value.trim().toLowerCase();
+  if (!domain) return '';
+
+  if (domain.includes('://')) {
+    throw new BadRequestException('Allowed domains must not include http:// or https://');
+  }
+
+  if (/[/?#\s]/.test(domain)) {
+    throw new BadRequestException('Allowed domains must not include paths, queries, or spaces');
+  }
+
+  if (domain.includes('*')) {
+    throw new BadRequestException('Allowed domains must list each domain or subdomain explicitly');
+  }
+
+  try {
+    const parsed = new URL(`https://${domain}`);
+    if (!parsed.hostname || parsed.host !== domain) {
+      throw new Error('Host normalization mismatch');
+    }
+    return parsed.host;
+  } catch {
+    throw new BadRequestException(`Invalid allowed domain: ${value}`);
+  }
+}
+
+export function normalizeAllowedDomains(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new BadRequestException('allowedDomains must be an array of domain strings');
+  }
+
+  return Array.from(
+    new Set(value.map(normalizeAllowedDomain).filter((domain) => domain.length > 0)),
+  ).sort();
+}
+
+export function originToAllowedDomain(origin: string | undefined | null): string | null {
+  if (!origin) return null;
+
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    if (!parsed.host) return null;
+    return parsed.host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 @Injectable()
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
+  private websiteOriginCache: WebsiteOriginCache | null = null;
 
   constructor(@Inject(DRIZZLE_CLIENT) private readonly db: DbClient) {}
 
@@ -142,6 +214,7 @@ export class ChannelsService {
   async create(orgId: string, dto: CreateChannelDto): Promise<ChannelRow> {
     // Validate the channel type resolves
     resolveChannelAdapter(dto.channelType);
+    const config = this.normalizeConfigForStorage(dto.channelType, dto.config ?? {});
 
     const [row] = await this.db
       .insert(schema.workspaceChannels)
@@ -149,24 +222,29 @@ export class ChannelsService {
         orgId,
         channelType: dto.channelType,
         name: dto.name,
-        config: encryptConfig(dto.config ?? {}),
+        config: encryptConfig(config),
         webhookSecret: dto.webhookSecret ?? null,
         workspaceInstructions: dto.workspaceInstructions ?? null,
       })
       .returning();
 
+    if (dto.channelType === 'website') this.invalidateWebsiteOriginCache();
     this.logger.log(`[create] org=${orgId} type=${dto.channelType} id=${row.id}`);
     return this.mapChannel(row);
   }
 
   async update(orgId: string, id: string, dto: UpdateChannelDto): Promise<ChannelRow> {
-    await this.findOne(orgId, id); // 404 guard
+    const existing = await this.findOne(orgId, id); // 404 guard
 
     const updates: Partial<typeof schema.workspaceChannels.$inferInsert> = {
       updatedAt: new Date(),
     };
     if (dto.name !== undefined) updates.name = dto.name;
-    if (dto.config !== undefined) updates.config = encryptConfig(dto.config);
+    if (dto.config !== undefined) {
+      updates.config = encryptConfig(
+        this.normalizeConfigForStorage(existing.channelType as ChannelType, dto.config),
+      );
+    }
     if (dto.webhookSecret !== undefined) updates.webhookSecret = dto.webhookSecret;
     if (dto.status !== undefined) updates.status = dto.status;
     if (dto.workspaceInstructions !== undefined)
@@ -178,15 +256,18 @@ export class ChannelsService {
       .where(and(eq(schema.workspaceChannels.id, id), eq(schema.workspaceChannels.orgId, orgId)))
       .returning();
 
+    if (existing.channelType === 'website') this.invalidateWebsiteOriginCache();
     return this.mapChannel(row);
   }
 
   async remove(orgId: string, id: string): Promise<void> {
-    await this.findOne(orgId, id); // 404 guard
+    const existing = await this.findOne(orgId, id); // 404 guard
 
     await this.db
       .delete(schema.workspaceChannels)
       .where(and(eq(schema.workspaceChannels.id, id), eq(schema.workspaceChannels.orgId, orgId)));
+
+    if (existing.channelType === 'website') this.invalidateWebsiteOriginCache();
   }
 
   // ─── Routing Rules ──────────────────────────────────────────────────────────
@@ -301,7 +382,108 @@ export class ChannelsService {
     return adapter.validate(row.config as Record<string, unknown>);
   }
 
+  async isCorsOriginAllowed(origin: string | undefined | null): Promise<boolean> {
+    const domain = originToAllowedDomain(origin);
+    if (!domain) return false;
+
+    const cache = await this.getWebsiteOriginCache();
+    return cache.allowedDomains.has(domain);
+  }
+
+  async isAgentOriginAllowed(
+    orgId: string,
+    agentId: string,
+    origin: string | undefined | null,
+  ): Promise<boolean> {
+    if (!origin) return true;
+
+    const domain = originToAllowedDomain(origin);
+    if (!domain) return false;
+
+    const cache = await this.getWebsiteOriginCache();
+    return (
+      cache.domainsByOrgAndAgent.get(websiteOriginCacheKey(orgId, agentId))?.has(domain) ?? false
+    );
+  }
+
   // ─── Mappers ────────────────────────────────────────────────────────────────
+
+  private normalizeConfigForStorage(
+    channelType: ChannelType,
+    config: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!isObject(config)) {
+      throw new BadRequestException('Channel config must be an object');
+    }
+
+    if (channelType !== 'website') return config;
+
+    return {
+      ...config,
+      allowedDomains: normalizeAllowedDomains(config.allowedDomains),
+    };
+  }
+
+  private invalidateWebsiteOriginCache(): void {
+    this.websiteOriginCache = null;
+  }
+
+  private async getWebsiteOriginCache(): Promise<WebsiteOriginCache> {
+    const now = Date.now();
+    if (this.websiteOriginCache && this.websiteOriginCache.expiresAt > now) {
+      return this.websiteOriginCache;
+    }
+
+    const rows = await this.db
+      .select()
+      .from(schema.workspaceChannels)
+      .where(
+        and(
+          eq(schema.workspaceChannels.channelType, 'website'),
+          eq(schema.workspaceChannels.status, 'active'),
+        ),
+      )
+      .orderBy(asc(schema.workspaceChannels.updatedAt));
+
+    const allowedDomains = new Set<string>();
+    const domainsByOrgAndAgent = new Map<string, Set<string>>();
+
+    for (const row of rows) {
+      const config = decryptConfig(row.config as Record<string, unknown>);
+      const orgId = row.orgId.trim();
+      const agentId = typeof config.agentId === 'string' ? config.agentId.trim() : '';
+
+      let domains: string[];
+      try {
+        domains = normalizeAllowedDomains(config.allowedDomains);
+      } catch (err) {
+        this.logger.warn(
+          `[cors] ignoring invalid website channel domains channel=${row.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        continue;
+      }
+
+      for (const domain of domains) {
+        allowedDomains.add(domain);
+        if (!orgId || !agentId) continue;
+
+        const key = websiteOriginCacheKey(orgId, agentId);
+        const existing = domainsByOrgAndAgent.get(key) ?? new Set<string>();
+        existing.add(domain);
+        domainsByOrgAndAgent.set(key, existing);
+      }
+    }
+
+    this.websiteOriginCache = {
+      expiresAt: now + WEBSITE_ORIGIN_CACHE_TTL_MS,
+      allowedDomains,
+      domainsByOrgAndAgent,
+    };
+
+    return this.websiteOriginCache;
+  }
 
   private mapChannel(row: typeof schema.workspaceChannels.$inferSelect): ChannelRow {
     return {

@@ -4,6 +4,7 @@ import { ChannelsService } from './channels.service';
 import type { CreateChannelDto, UpdateChannelDto, UpsertRoutingRuleDto } from './channels.service';
 
 const ORG = 'org_ch_unit';
+const OTHER_ORG = 'org_ch_other';
 const CH_ID = 'ch_test_1';
 const RULE_ID = 'rule_1';
 const AGENT_ID = 'agent_1';
@@ -244,6 +245,53 @@ describe('ChannelsService', () => {
       const dto = { channelType: 'carrier-pigeon', name: 'Bad' } as unknown as CreateChannelDto;
       await expect(service.create(ORG, dto)).rejects.toThrow();
     });
+
+    it('normalizes and deduplicates website allowed domains before insert', async () => {
+      const row = channelDbRow({
+        channelType: 'website',
+        config: {
+          agentId: AGENT_ID,
+          allowedDomains: ['example.com', 'www.example.com'],
+        },
+      });
+      db.insertReturning.mockResolvedValue([row]);
+
+      await service.create(ORG, {
+        channelType: 'website',
+        name: 'Website',
+        config: {
+          agentId: AGENT_ID,
+          allowedDomains: ['Example.com', 'www.example.com', 'example.com', '  '],
+        },
+      });
+
+      expect(db.insertValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelType: 'website',
+          config: expect.objectContaining({
+            allowedDomains: ['example.com', 'www.example.com'],
+          }),
+        }),
+      );
+    });
+
+    it('rejects website allowed domains with protocols or paths', async () => {
+      await expect(
+        service.create(ORG, {
+          channelType: 'website',
+          name: 'Website',
+          config: { allowedDomains: ['https://example.com'] },
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await expect(
+        service.create(ORG, {
+          channelType: 'website',
+          name: 'Website',
+          config: { allowedDomains: ['example.com/chat'] },
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 
   // ─── update ─────────────────────────────────────────────────────────────────
@@ -269,6 +317,41 @@ describe('ChannelsService', () => {
       await expect(service.update(ORG, 'missing', { name: 'X' })).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+
+    it('invalidates cached website origins after update', async () => {
+      db.selectOrderBy.mockResolvedValueOnce([
+        channelDbRow({
+          channelType: 'website',
+          config: { agentId: AGENT_ID, allowedDomains: ['old.example'] },
+        }),
+      ]);
+      await expect(service.isCorsOriginAllowed('https://old.example')).resolves.toBe(true);
+
+      db.selectWhere.mockResolvedValueOnce([
+        channelDbRow({
+          channelType: 'website',
+          config: { agentId: AGENT_ID, allowedDomains: ['old.example'] },
+        }),
+      ]);
+      db.updateReturning.mockResolvedValue([
+        channelDbRow({
+          channelType: 'website',
+          config: { agentId: AGENT_ID, allowedDomains: ['new.example'] },
+        }),
+      ]);
+
+      await service.update(ORG, CH_ID, {
+        config: { agentId: AGENT_ID, allowedDomains: ['new.example'] },
+      });
+
+      db.selectOrderBy.mockResolvedValueOnce([
+        channelDbRow({
+          channelType: 'website',
+          config: { agentId: AGENT_ID, allowedDomains: ['new.example'] },
+        }),
+      ]);
+      await expect(service.isCorsOriginAllowed('https://new.example')).resolves.toBe(true);
     });
   });
 
@@ -345,6 +428,58 @@ describe('ChannelsService', () => {
       await service.deleteRoutingRule(ORG, CH_ID, RULE_ID);
 
       expect(db.deleteFn).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('website origin checks', () => {
+    it('allows origins configured on active website channels', async () => {
+      db.selectOrderBy.mockResolvedValue([
+        channelDbRow({
+          channelType: 'website',
+          status: 'active',
+          config: { agentId: AGENT_ID, allowedDomains: ['client.example'] },
+        }),
+      ]);
+
+      await expect(service.isCorsOriginAllowed('https://client.example')).resolves.toBe(true);
+      await expect(
+        service.isAgentOriginAllowed(ORG, AGENT_ID, 'https://client.example'),
+      ).resolves.toBe(true);
+    });
+
+    it('does not allow a domain configured for a different agent', async () => {
+      db.selectOrderBy.mockResolvedValue([
+        channelDbRow({
+          channelType: 'website',
+          status: 'active',
+          config: { agentId: 'other-agent', allowedDomains: ['client.example'] },
+        }),
+      ]);
+
+      await expect(service.isCorsOriginAllowed('https://client.example')).resolves.toBe(true);
+      await expect(
+        service.isAgentOriginAllowed(ORG, AGENT_ID, 'https://client.example'),
+      ).resolves.toBe(false);
+    });
+
+    it('does not allow a domain configured for the same agent in a different org', async () => {
+      db.selectOrderBy.mockResolvedValue([
+        channelDbRow({
+          orgId: OTHER_ORG,
+          channelType: 'website',
+          status: 'active',
+          config: { agentId: AGENT_ID, allowedDomains: ['client.example'] },
+        }),
+      ]);
+
+      await expect(service.isCorsOriginAllowed('https://client.example')).resolves.toBe(true);
+      await expect(
+        service.isAgentOriginAllowed(ORG, AGENT_ID, 'https://client.example'),
+      ).resolves.toBe(false);
+    });
+
+    it('allows no-origin agent requests for server-side callers', async () => {
+      await expect(service.isAgentOriginAllowed(ORG, AGENT_ID, undefined)).resolves.toBe(true);
     });
   });
 });

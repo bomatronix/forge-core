@@ -3,7 +3,9 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import serverlessExpress from '@codegenie/serverless-express';
 import express from 'express';
 import type { Handler, Context, APIGatewayProxyEvent } from 'aws-lambda';
+import { ChannelsService } from '@forge-core/channels';
 import { AppModule } from './app.module';
+import { createCorsOptions } from './cors';
 
 let cachedHandler: Handler;
 
@@ -15,10 +17,7 @@ async function bootstrap(): Promise<Handler> {
   const expressApp = express();
   const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp));
 
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? '*',
-    credentials: true,
-  });
+  app.enableCors(createCorsOptions(app.get(ChannelsService)));
 
   // Trust the last proxy hop (ALB/API Gateway) so req.ip reflects the real client IP.
   expressApp.set('trust proxy', 1);

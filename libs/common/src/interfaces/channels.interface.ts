@@ -14,10 +14,21 @@ export interface WorkspaceChannel {
   orgId: string;
   channelType: ChannelType;
   name: string;
+  config: Record<string, unknown>;
+  webhookSecret: string | null;
   status: 'active' | 'paused' | 'error';
   workspaceInstructions: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WebsiteChannelConfig {
+  agentId?: string;
+  brandName?: string;
+  brandColor?: string;
+  mode?: 'floating' | 'inline';
+  position?: 'bottom-right' | 'bottom-left';
+  allowedDomains?: string[];
 }
 
 export interface RoutingRule {

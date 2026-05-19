@@ -15,15 +15,17 @@ export class WebsiteAdapter implements IChannelAdapter {
   readonly configSchema: Record<string, unknown> = {
     type: 'object',
     properties: {
-      allowedOrigins: {
+      allowedDomains: {
         type: 'array',
         items: { type: 'string' },
-        title: 'Allowed Origins (e.g. https://yoursite.com)',
+        title: 'Allowed domains (e.g. yoursite.com)',
       },
-      widgetTitle: { type: 'string', title: 'Widget Title' },
-      widgetColor: { type: 'string', title: 'Primary Color (hex)' },
+      agentId: { type: 'string', title: 'Agent ID' },
+      brandName: { type: 'string', title: 'Brand name' },
+      brandColor: { type: 'string', title: 'Primary color (hex)' },
+      mode: { type: 'string', enum: ['floating', 'inline'], title: 'Display mode' },
+      position: { type: 'string', enum: ['bottom-right', 'bottom-left'], title: 'Position' },
     },
-    required: ['allowedOrigins'],
   };
   readonly setupInstructions =
     'Add the embed snippet to your website. Widget appears as a chat button in the bottom-right corner.';

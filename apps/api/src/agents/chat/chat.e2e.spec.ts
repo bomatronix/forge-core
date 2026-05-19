@@ -74,10 +74,22 @@ const testAgent: AgentRow = {
   deletedAt: null,
 };
 
-function createDbWithAgent(agent: AgentRow, knowledgeItems: KnowledgeItem[] = []): DbClient {
+function createDbWithAgent(
+  agent: AgentRow,
+  knowledgeItems: KnowledgeItem[] = [],
+  channels: Array<typeof schema.workspaceChannels.$inferSelect> = [],
+): DbClient {
   return {
     select: jest.fn(() => ({
       from: jest.fn((table: unknown) => {
+        if (table === schema.workspaceChannels) {
+          return {
+            where: jest.fn(() => ({
+              orderBy: jest.fn(async () => channels),
+            })),
+          };
+        }
+
         if (table === schema.agentKnowledgeItems) {
           return {
             where: jest.fn(() => ({
@@ -343,6 +355,60 @@ describe('Chat API (e2e)', () => {
       await app.close();
     });
 
+    it('403 — rejects public chat from static CORS_ORIGIN when no website channel matches', async () => {
+      const originalCorsOrigin = process.env.CORS_ORIGIN;
+      process.env.CORS_ORIGIN = 'http://localhost:3003';
+      const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
+
+      try {
+        const res = await fetch(
+          `${baseUrl}/api/public/agents/${AGENT_ID}/chat/stream?token=share_e2e_token`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3003' },
+            body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+          },
+        );
+
+        expect(res.status).toBe(403);
+      } finally {
+        if (originalCorsOrigin === undefined) delete process.env.CORS_ORIGIN;
+        else process.env.CORS_ORIGIN = originalCorsOrigin;
+        await app.close();
+      }
+    });
+
+    it('200 — allows browser public chat from an origin configured for the same org and agent', async () => {
+      const { app, baseUrl } = await buildApp(
+        createDbWithAgent(testAgent, [], [
+          {
+            id: randomUUID(),
+            orgId: ORG,
+            channelType: 'website',
+            name: 'Client Website',
+            config: { agentId: AGENT_ID, allowedDomains: ['client.example'] },
+            webhookSecret: null,
+            status: 'active',
+            workspaceInstructions: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]),
+      );
+
+      const res = await fetch(
+        `${baseUrl}/api/public/agents/${AGENT_ID}/chat/stream?token=share_e2e_token`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: 'https://client.example' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+        },
+      );
+
+      expect(res.status).toBe(200);
+      await app.close();
+    });
+
     it('404 — rejects raw unauthenticated public stream requests without a share token', async () => {
       const { app, baseUrl } = await buildApp(createDbWithAgent(testAgent));
 
@@ -353,6 +419,68 @@ describe('Chat API (e2e)', () => {
       });
 
       expect(res.status).toBe(404);
+      await app.close();
+    });
+
+    it('403 — rejects browser public chat when origin is configured for another agent', async () => {
+      const { app, baseUrl } = await buildApp(
+        createDbWithAgent(testAgent, [], [
+          {
+            id: randomUUID(),
+            orgId: ORG,
+            channelType: 'website',
+            name: 'Other Website',
+            config: { agentId: randomUUID(), allowedDomains: ['client.example'] },
+            webhookSecret: null,
+            status: 'active',
+            workspaceInstructions: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]),
+      );
+
+      const res = await fetch(
+        `${baseUrl}/api/public/agents/${AGENT_ID}/chat/stream?token=share_e2e_token`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: 'https://client.example' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+        },
+      );
+
+      expect(res.status).toBe(403);
+      await app.close();
+    });
+
+    it('403 — rejects browser public chat when origin is configured for the same agent in another org', async () => {
+      const { app, baseUrl } = await buildApp(
+        createDbWithAgent(testAgent, [], [
+          {
+            id: randomUUID(),
+            orgId: 'org_other',
+            channelType: 'website',
+            name: 'Other Org Website',
+            config: { agentId: AGENT_ID, allowedDomains: ['client.example'] },
+            webhookSecret: null,
+            status: 'active',
+            workspaceInstructions: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]),
+      );
+
+      const res = await fetch(
+        `${baseUrl}/api/public/agents/${AGENT_ID}/chat/stream?token=share_e2e_token`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: 'https://client.example' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+        },
+      );
+
+      expect(res.status).toBe(403);
       await app.close();
     });
   });
