@@ -93,6 +93,7 @@ describe('AgentsService', () => {
           name: 'Test Agent',
           agentType: 'custom',
           status: 'draft',
+          shareToken: null,
           channels: ['Web'],
           conversations: 0,
           resolution: null,
