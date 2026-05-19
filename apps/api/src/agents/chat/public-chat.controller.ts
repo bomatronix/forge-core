@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpException,
   HttpCode,
@@ -12,6 +13,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { Public } from '@forge-core/core';
+import { ChannelsService } from '@forge-core/channels';
 import type { DraftAgent } from '@forge-core/common';
 import type { Request, Response } from 'express';
 import { AgentsService } from '../agents.service';
@@ -71,14 +73,31 @@ export class PublicChatController {
   constructor(
     private readonly agentsService: AgentsService,
     private readonly chatService: ChatService,
+    private readonly channelsService: ChannelsService,
   ) {}
+
+  private async assertPublicOriginAllowed(
+    orgId: string,
+    agentId: string,
+    req: Request,
+  ): Promise<void> {
+    const origin = req.header('origin');
+    if (!origin) return;
+
+    const isAllowed = await this.channelsService.isAgentOriginAllowed(orgId, agentId, origin);
+    if (!isAllowed) {
+      throw new ForbiddenException('Origin is not allowed for this agent');
+    }
+  }
 
   @Get()
   async getPublicAgent(
     @Param('id') id: string,
     @Query('token') token: string | string[] | undefined,
+    @Req() req: Request,
   ) {
     const row = await this.agentsService.findPublicLive(id, queryValue(token));
+    await this.assertPublicOriginAllowed(row.orgId, row.id, req);
 
     return {
       id: row.id,
@@ -98,9 +117,12 @@ export class PublicChatController {
     @Res() res: Response,
   ): Promise<void> {
     assertWithinRateLimit(req);
+    const tokenValue = queryValue(token);
+    const row = await this.agentsService.findPublicLive(id, tokenValue);
+    await this.assertPublicOriginAllowed(row.orgId, row.id, req);
 
     // Await eagerly so 404/429 validation happens before committing streaming headers.
-    const stream = await this.chatService.streamPublicChat(id, queryValue(token), dto.messages);
+    const stream = await this.chatService.streamPublicChatForAgent(row, dto.messages);
 
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream');

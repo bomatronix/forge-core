@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ChannelsModule as ChannelsCoreModule } from '@forge-core/channels';
 import { AgentsController } from './agents.controller';
 import { AgentsService } from './agents.service';
 import { ChatController } from './chat/chat.controller';
@@ -21,6 +22,7 @@ import { ConversationsController } from './conversations/conversations.controlle
 import { ConversationsService } from './conversations/conversations.service';
 
 @Module({
+  imports: [ChannelsCoreModule],
   controllers: [
     AgentsController,
     ChatController,

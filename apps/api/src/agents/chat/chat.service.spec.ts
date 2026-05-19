@@ -312,6 +312,23 @@ describe('ChatService', () => {
       expect(mockAgentsService.findPublicLive).toHaveBeenCalledWith('agent-unit-test', 'share_abc');
     });
 
+    it('streams from an already validated public agent row without looking it up again', async () => {
+      mockStream.mockImplementation(() => makeStreamGen(['Hello']));
+
+      await collectAll(
+        await service.streamPublicChatForAgent(
+          { id: 'agent-unit-test', orgId: 'org_unit', name: 'Aria', uiConfig: testAgent.uiConfig },
+          messages,
+        ),
+      );
+
+      expect(mockAgentsService.findPublicLive).not.toHaveBeenCalled();
+      expect(mockKnowledgeService.findPromptItems).toHaveBeenCalledWith(
+        'org_unit',
+        'agent-unit-test',
+      );
+    });
+
     it('yields delta events for public chat streams', async () => {
       mockStream.mockImplementation(() => makeStreamGen(['Public ', 'Hello']));
 

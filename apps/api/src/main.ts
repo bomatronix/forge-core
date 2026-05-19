@@ -1,15 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ChannelsService } from '@forge-core/channels';
 import { AppModule } from './app.module';
+import { createCorsOptions } from './cors';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const authIssuer = process.env.AUTH_HANDLER_ISSUER?.trim() || 'http://localhost:3002/auth';
 
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
-    credentials: true,
-  });
+  app.enableCors(createCorsOptions(app.get(ChannelsService)));
 
   // Trust the last proxy hop (ALB/API Gateway) so req.ip reflects the real client IP.
   app.getHttpAdapter().getInstance().set('trust proxy', 1);

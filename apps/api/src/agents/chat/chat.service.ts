@@ -12,7 +12,7 @@ export interface ChatResponse {
 }
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
-type AgentPromptRow = { id: string; orgId: string; name: string; uiConfig: unknown };
+export type AgentPromptRow = { id: string; orgId: string; name: string; uiConfig: unknown };
 type PromptKnowledgeItem = {
   type: string;
   title?: string | null;
@@ -122,6 +122,13 @@ export class ChatService implements OnModuleInit {
     messages: ChatMessage[],
   ): Promise<AsyncIterable<StreamEvent>> {
     const row = await this.agentsService.findPublicLive(agentId, shareToken);
+    return this.streamPublicChatForAgent(row, messages);
+  }
+
+  async streamPublicChatForAgent(
+    row: AgentPromptRow,
+    messages: ChatMessage[],
+  ): Promise<AsyncIterable<StreamEvent>> {
     const knowledgeItems = await this.knowledgeService.findPromptItems(row.orgId, row.id);
     return this.streamWithAgent(row, messages, 'public=true', 'public', knowledgeItems);
   }

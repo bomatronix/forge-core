@@ -127,6 +127,7 @@ export class AgentsService {
       name: row.name,
       agentType: row.agentTypeSlug,
       status: row.status as Agent['status'],
+      shareToken: row.shareToken ?? null,
       channels:
         ((row.uiConfig as Record<string, unknown> | null)?.channels as Agent['channels']) ?? [],
       conversations: 0,
