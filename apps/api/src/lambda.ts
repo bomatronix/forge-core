@@ -14,6 +14,14 @@ async function bootstrap(): Promise<Handler> {
     return cachedHandler;
   }
 
+  const rawCorsOrigin = process.env.CORS_ORIGIN;
+  if (rawCorsOrigin?.startsWith('arn:aws:secretsmanager:')) {
+    const { SecretsManagerClient, GetSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
+    const client = new SecretsManagerClient({});
+    const result = await client.send(new GetSecretValueCommand({ SecretId: rawCorsOrigin }));
+    process.env.CORS_ORIGIN = result.SecretString ?? '';
+  }
+
   const expressApp = express();
   const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp));
 
