@@ -47,6 +47,15 @@ export function createCorsOptions(
         callback(err instanceof Error ? err : new Error(String(err)), false);
       });
     },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'X-Amz-Date',
+      'Authorization',
+      'X-Api-Key',
+      'X-Amz-Security-Token',
+    ],
     credentials: true,
+    optionsSuccessStatus: 200,
   };
 }
