@@ -121,6 +121,39 @@
           ]
         },
         {
+          "name": "Agents list without bearer is rejected",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{dashboardOrigin}}"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents",
+            "description": "Regression coverage for dashboard requests that accidentally omit the bearer token. Local Nest returns 401; deployed API Gateway authorizer returns 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 locally or 403 from API Gateway', () => {",
+                  "  pm.expect([401, 403]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('dashboard origin receives CORS header', () => {",
+                  "  pm.expect(pm.response.headers.get('access-control-allow-origin')).to.eql(pm.environment.get('dashboardOrigin'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Protected Health",
           "request": {
             "auth": {

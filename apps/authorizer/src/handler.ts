@@ -58,6 +58,7 @@ async function getAdapter(): Promise<AuthTokenVerifier> {
 // Keep this list minimal and hardcoded — Nest still applies endpoint-level checks.
 const PUBLIC_AGENT_PATH = /^\/api\/public\/agents\/[^/]+$/;
 const PUBLIC_AGENT_STREAM_PATH = /^\/api\/public\/agents\/[^/]+\/chat\/stream$/;
+const PUBLIC_WEBHOOK_PATH = /^\/api\/public\/webhook\/[^/]+$/;
 
 function normalizeGatewayPath(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -69,6 +70,7 @@ function isPublicRequest(path: string, method: string): boolean {
   if (method === 'GET' && publicPath === '/api/health') return true;
   if (method === 'GET' && PUBLIC_AGENT_PATH.test(publicPath)) return true;
   if (method === 'POST' && PUBLIC_AGENT_STREAM_PATH.test(publicPath)) return true;
+  if (method === 'POST' && PUBLIC_WEBHOOK_PATH.test(publicPath)) return true;
   return false;
 }
 
