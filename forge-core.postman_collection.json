@@ -1505,6 +1505,2075 @@
       ]
     },
     {
+      "name": "Conversations (Spec-15)",
+      "item": [
+        {
+          "name": "Mint conversations token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{authBaseUrl}}/auth/dev/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_conversations_smoke\",\n  \"email\": \"conversations-smoke@mindrithm.ai\",\n  \"name\": \"Conversations Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create conversations agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Conversation Agent\",\n  \"agentType\": \"support\",\n  \"uiConfig\": {\n    \"identity\": { \"tone\": \"friendly\", \"welcomeMessage\": \"Hello from Postman.\" },\n    \"behaviour\": { \"systemPrompt\": \"You are Postman Conversation Agent. Keep answers concise.\" },\n    \"channels\": [\"Web\"]\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('conversationAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create conversation",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}/conversations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('conversation id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.test('createdAt returned', () => pm.expect(j.createdAt).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('conversationId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List conversations",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}/conversations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('conversation list is array', () => pm.expect(list).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get conversation before messages",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}/conversations/{{conversationId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('id matches', () => pm.expect(j.id).to.eql(pm.environment.get('conversationId')));",
+                  "pm.test('messages array returned', () => pm.expect(j.messages).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send persistent conversation message",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}/conversations/{{conversationId}}/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello from a persistent Postman conversation.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('content returned', () => pm.expect(j.content).to.be.a('string').and.not.empty);",
+                  "pm.test('usage returned', () => pm.expect(j.usage).to.be.an('object'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get conversation with persisted messages",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}/conversations/{{conversationId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('has persisted user and assistant messages', () => {",
+                  "  pm.expect(j.messages.some(m => m.role === 'user')).to.eql(true);",
+                  "  pm.expect(j.messages.some(m => m.role === 'assistant')).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete conversation",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}/conversations/{{conversationId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get deleted conversation returns 404",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}/conversations/{{conversationId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete conversations agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{conversationAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('conversationAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Knowledge (Spec-16)",
+      "item": [
+        {
+          "name": "Mint knowledge token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{authBaseUrl}}/auth/dev/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_knowledge_smoke\",\n  \"email\": \"knowledge-smoke@mindrithm.ai\",\n  \"name\": \"Knowledge Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create knowledge agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Knowledge Agent\",\n  \"agentType\": \"support\",\n  \"uiConfig\": {\n    \"identity\": { \"tone\": \"friendly\", \"welcomeMessage\": \"Hello from Postman.\" },\n    \"behaviour\": { \"systemPrompt\": \"Use provided knowledge when it is relevant.\" },\n    \"channels\": [\"Web\"]\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('knowledgeAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List knowledge items initially",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{knowledgeAgentId}}/knowledge"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('knowledge list is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create QA knowledge item",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{knowledgeAgentId}}/knowledge",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"qa\",\n  \"title\": \"Returns\",\n  \"question\": \"What is the return policy?\",\n  \"answer\": \"30-day returns on all items.\",\n  \"position\": 0\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('knowledge item id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.test('type is qa', () => pm.expect(j.type).to.eql('qa'));",
+                  "pm.environment.set('knowledgeItemId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List knowledge items includes created item",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{knowledgeAgentId}}/knowledge"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('created knowledge item present', () => pm.expect(list.some(item => item.id === pm.environment.get('knowledgeItemId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update knowledge item",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{knowledgeAgentId}}/knowledge/{{knowledgeItemId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answer\": \"45-day returns on unopened items.\",\n  \"position\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('answer updated', () => pm.expect(j.answer).to.eql('45-day returns on unopened items.'));",
+                  "pm.test('position updated', () => pm.expect(j.position).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete knowledge item",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{knowledgeAgentId}}/knowledge/{{knowledgeItemId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('delete succeeded', () => pm.expect([200, 204]).to.include(pm.response.code));",
+                  "pm.environment.unset('knowledgeItemId');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete knowledge agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{knowledgeAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('knowledgeAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Channels (Spec-17)",
+      "item": [
+        {
+          "name": "Mint channels token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{authBaseUrl}}/auth/dev/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_channels_smoke\",\n  \"email\": \"channels-smoke@mindrithm.ai\",\n  \"name\": \"Channels Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create channel routing agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Channel Agent\",\n  \"agentType\": \"support\",\n  \"uiConfig\": {\n    \"identity\": { \"tone\": \"friendly\", \"welcomeMessage\": \"Hello from Postman.\" },\n    \"behaviour\": { \"systemPrompt\": \"You are Postman Channel Agent. Reply clearly to channel messages.\" },\n    \"channels\": [\"Web\"]\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('channelAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get channel catalog",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/catalog"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('catalog includes test channel', () => pm.expect(list.some(c => c.type === 'test')).to.eql(true));",
+                  "pm.test('catalog includes website channel', () => pm.expect(list.some(c => c.type === 'website')).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create test channel",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/channels",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channelType\": \"test\",\n  \"name\": \"Postman Test Channel\",\n  \"workspaceInstructions\": \"Postman smoke test channel.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('created test channel', () => pm.expect(j.channelType).to.eql('test'));",
+                  "pm.environment.set('testChannelId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List channels",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('created channel present', () => pm.expect(list.some(c => c.id === pm.environment.get('testChannelId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get channel by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('id matches', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('testChannelId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patch channel",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Channel Updated\",\n  \"status\": \"active\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('name updated', () => pm.expect(pm.response.json().name).to.eql('Postman Test Channel Updated'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate channel config",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}/validate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 or 201', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('validation ok', () => pm.expect(pm.response.json().ok).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get channel webhook URL",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}/webhook-url"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('webhookUrl includes channel id', () => pm.expect(j.webhookUrl).to.include(pm.environment.get('testChannelId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create routing rule",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}/routing-rules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"priority\": 0,\n  \"conditionType\": \"always\",\n  \"conditionValue\": {},\n  \"agentId\": \"{{channelAgentId}}\",\n  \"agentInstructions\": \"Answer as the routed Postman channel agent.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('routing rule id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('routingRuleId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List routing rules",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}/routing-rules"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('routing rule present', () => pm.expect(list.some(r => r.id === pm.environment.get('routingRuleId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replace routing rules",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}/routing-rules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rules\": [\n    {\n      \"priority\": 0,\n      \"conditionType\": \"always\",\n      \"conditionValue\": {},\n      \"agentId\": \"{{channelAgentId}}\",\n      \"agentInstructions\": \"Answer as the routed Postman channel agent.\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('one replacement rule returned', () => pm.expect(list).to.have.length(1));",
+                  "pm.environment.set('routingRuleId', list[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trigger test channel inbound message",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/channels/test/{{testChannelId}}/trigger",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello through the test channel\",\n  \"fromId\": \"postman-channel-user\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('trigger handled', () => pm.expect(j.ok).to.eql(true));",
+                  "pm.test('conversation id returned', () => pm.expect(j.conversationId).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('channelConversationId', j.conversationId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List channel conversations",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}/conversations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('conversation page returned', () => { pm.expect(j.data).to.be.an('array'); pm.expect(j.total).to.be.a('number'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get channel conversation messages",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/conversations/{{channelConversationId}}/messages"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('messages returned', () => pm.expect(list.length).to.be.greaterThan(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public webhook accepts channel payload",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/public/webhook/{{testChannelId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello through the public webhook\",\n  \"fromId\": \"postman-webhook-user\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('webhook response is object', () => pm.expect(j).to.be.an('object'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete routing rule",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}/routing-rules/{{routingRuleId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));",
+                  "pm.environment.unset('routingRuleId');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete test channel — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{testChannelId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));",
+                  "pm.environment.unset('testChannelId');",
+                  "pm.environment.unset('channelConversationId');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete channel routing agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{channelAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('channelAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Website Widget (Spec-18)",
+      "item": [
+        {
+          "name": "Mint website widget token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{authBaseUrl}}/auth/dev/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_widget_smoke\",\n  \"email\": \"widget-smoke@mindrithm.ai\",\n  \"name\": \"Widget Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create website widget agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Website Widget Agent\",\n  \"agentType\": \"support\",\n  \"uiConfig\": {\n    \"identity\": { \"tone\": \"friendly\", \"welcomeMessage\": \"Hi from the Postman website widget agent.\" },\n    \"behaviour\": { \"systemPrompt\": \"You are Postman Website Widget Agent. Mention widget once in the first answer.\" },\n    \"channels\": [\"Web\"]\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('websiteWidgetAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publish website widget agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{websiteWidgetAgentId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"live\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('shareToken returned', () => pm.expect(j.shareToken).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('websiteWidgetShareToken', j.shareToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create website channel with allowed domain",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/channels",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channelType\": \"website\",\n  \"name\": \"Postman Website Widget\",\n  \"config\": {\n    \"agentId\": \"{{websiteWidgetAgentId}}\",\n    \"allowedDomains\": [\"{{widgetDomain}}\"],\n    \"brandName\": \"Postman Widget\",\n    \"brandColor\": \"#4f2edc\",\n    \"mode\": \"floating\",\n    \"position\": \"bottom-right\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('created website channel', () => pm.expect(j.channelType).to.eql('website'));",
+                  "pm.environment.set('websiteWidgetChannelId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Allowed widget origin preflight",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{widgetOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "content-type"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/public/agents/{{websiteWidgetAgentId}}/chat/stream?token={{websiteWidgetShareToken}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('preflight status is successful', () => pm.expect([200, 204]).to.include(pm.response.code));",
+                  "pm.test('allowed origin echoed', () => pm.expect(pm.response.headers.get('access-control-allow-origin')).to.eql(pm.environment.get('widgetOrigin')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown widget origin preflight has no allow-origin",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{unknownWidgetOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "content-type"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/public/agents/{{websiteWidgetAgentId}}/chat/stream?token={{websiteWidgetShareToken}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unknown origin is not echoed', () => pm.expect(pm.response.headers.get('access-control-allow-origin')).to.not.eql(pm.environment.get('unknownWidgetOrigin')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public metadata with widget Origin",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{widgetOrigin}}"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/public/agents/{{websiteWidgetAgentId}}?token={{websiteWidgetShareToken}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('allowed origin echoed', () => pm.expect(pm.response.headers.get('access-control-allow-origin')).to.eql(pm.environment.get('widgetOrigin')));",
+                  "const j = pm.response.json();",
+                  "pm.test('metadata id matches', () => pm.expect(j.id).to.eql(pm.environment.get('websiteWidgetAgentId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public stream with widget Origin",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "{{widgetOrigin}}"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/public/agents/{{websiteWidgetAgentId}}/chat/stream?token={{websiteWidgetShareToken}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello from the embedded widget smoke test.\" }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('allowed origin echoed', () => pm.expect(pm.response.headers.get('access-control-allow-origin')).to.eql(pm.environment.get('widgetOrigin')));",
+                  "pm.test('content-type is text/event-stream', () => pm.expect(pm.response.headers.get('content-type')).to.include('text/event-stream'));",
+                  "const text = pm.response.text();",
+                  "pm.test('has done event', () => pm.expect(text).to.include('data: {\"type\":\"done\"}'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete website channel — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/channels/{{websiteWidgetChannelId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));",
+                  "pm.environment.unset('websiteWidgetChannelId');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete website widget agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{websiteWidgetAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('websiteWidgetAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Catalog + Knowledge Sources",
+      "item": [
+        {
+          "name": "Mint catalog token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{authBaseUrl}}/auth/dev/token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client_id\": \"forge-postman\",\n  \"scope\": \"openid profile email offline_access agents:read agents:write\",\n  \"user_id\": \"user_catalog_smoke\",\n  \"email\": \"catalog-smoke@mindrithm.ai\",\n  \"name\": \"Catalog Smoke User\",\n  \"org_id\": \"{{mindrithmOrgId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('access_token', () => pm.expect(j.access_token).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('platformToken', j.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List agent types",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agent-types"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('agent types array returned', () => pm.expect(list).to.be.an('array'));",
+                  "if (list.length > 0) pm.environment.set('catalogAgentTypeSlug', list[0].slug);",
+                  "else pm.environment.set('catalogAgentTypeSlug', 'support');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List agent templates",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agent-templates"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('templates array returned', () => pm.expect(list).to.be.an('array'));",
+                  "if (list.length > 0) pm.environment.set('catalogTemplateSlug', list[0].id);",
+                  "else pm.environment.unset('catalogTemplateSlug');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get agent template by slug",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agent-templates/{{catalogTemplateSlug}}"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('catalogTemplateSlug')) {",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('template id matches', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('catalogTemplateSlug')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List knowledge source options",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/knowledge-source-options"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test('knowledge source options array returned', () => pm.expect(list).to.be.an('array'));",
+                  "if (list.length > 0) pm.environment.set('catalogKnowledgeSourceSlug', list[0].slug);",
+                  "else pm.environment.unset('catalogKnowledgeSourceSlug');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List knowledge source options by agent type",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/knowledge-source-options?agentType={{catalogAgentTypeSlug}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('filtered knowledge source options array returned', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List agent type knowledge sources",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agent-types/{{catalogAgentTypeSlug}}/knowledge-sources"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('agent type knowledge sources array returned', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update agent type knowledge sources — skipped by default",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agent-types/{{catalogAgentTypeSlug}}/knowledge-sources",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceSlugs\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('enableUnsafeConfigTests') !== 'true') {",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('updated agent type sources array returned', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create catalog knowledge-source agent",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Catalog Agent\",\n  \"agentType\": \"support\",\n  \"uiConfig\": {\n    \"identity\": { \"tone\": \"friendly\", \"welcomeMessage\": \"Hello from Postman.\" },\n    \"behaviour\": { \"systemPrompt\": \"You are Postman Catalog Agent.\" },\n    \"channels\": [\"Web\"]\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('id returned', () => pm.expect(j.id).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('catalogAgentId', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List agent knowledge source selections",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{catalogAgentId}}/knowledge-sources"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('agent selections array returned', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update agent knowledge source selections",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBaseUrl}}/api/agents/{{catalogAgentId}}/knowledge-sources",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceSlugs\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('updated agent selections array returned', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete catalog agent — cleanup",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": "{{apiBaseUrl}}/api/agents/{{catalogAgentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.unset('catalogAgentId');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Metrics (Spec-09)",
       "description": "Authenticated tenant-scoped dashboard metrics smoke test for Spec-09.",
       "item": [
