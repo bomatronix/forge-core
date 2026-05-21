@@ -126,6 +126,27 @@ describe('Lambda Authorizer handler', () => {
     expect(result.principalId).toBe('anonymous');
   });
 
+  it('allows public channel webhooks through the authorizer without a bearer token', async () => {
+    const result = await handler(mockEvent('', '/api/public/webhook/channel_123', 'POST'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
+  it('allows stage-prefixed public channel webhooks through the authorizer', async () => {
+    const result = await handler(mockEvent('', '/v1/api/public/webhook/channel_123', 'POST'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
+  it('allows public channel webhooks for API Gateway ANY proxy routes', async () => {
+    const result = await handler(mockEvent('', '/api/public/webhook/channel_123', 'POST', 'ANY'));
+
+    expect(result.policyDocument.Statement[0].Effect).toBe('Allow');
+    expect(result.principalId).toBe('anonymous');
+  });
+
   it('does not treat nearby public agent paths as authorizer-public', async () => {
     const result = await handler(mockEvent('', '/api/public/agents/agent_123/chat', 'POST'));
 
