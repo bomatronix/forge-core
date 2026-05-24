@@ -70,8 +70,11 @@ A Mindrithm user with a valid JWT cannot access a Ploutos-tenant endpoint — th
 
 ### Adding a Tier 2 (agency tenant)
 1. Obtain org ID from identity provider (Clerk org ID, etc.)
-2. Add to `ALLOWED_ORG_IDS` env var in `apps/api/` deployment (TFE workspace variable)
-3. No code change, no deploy
+2. Add the org ID to `ALLOWED_ORG_IDS` env var in the API deployment (TFE workspace variable)
+3. Set the frontend tenant org env (`NEXT_PUBLIC_ORG_ID`, or `AUTH_HANDLER_ORG_ID` as a server-only override) so auth-handler receives OAuth `org_id` and mints platform JWTs with a non-empty `org_id` claim
+4. Redeploy the frontend and ask affected users to log out/back in so old tenantless tokens are replaced
+
+Use the cross-repo [New Tenant / White-Label Org Setup](../../docs/runbooks/new-tenant-setup.md) runbook for the full identity, frontend, API, DNS, and verification checklist.
 
 ### Adding a Tier 3 (dedicated client product)
 1. `mkdir apps/client-<name>/` — copy from `apps/api/` as template
