@@ -265,6 +265,7 @@ export class AuthHandlerController {
         code_challenge_method: { type: 'string', example: 'S256' },
         scope: { type: 'string' },
         connection: { type: 'string', example: 'clerk' },
+        org_id: { type: 'string', example: 'org_3Btsbe9VH1nZ3uFpHATcTcvAOU3' },
       },
       required: ['email', 'password', 'client_id', 'redirect_uri'],
     },

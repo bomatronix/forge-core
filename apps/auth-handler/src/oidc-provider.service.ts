@@ -368,7 +368,7 @@ export class OidcProviderService {
       email: browserSession.email,
       name: browserSession.name,
       avatarUrl: browserSession.avatarUrl,
-      orgId: browserSession.orgId,
+      orgId: pending.orgId ?? browserSession.orgId,
       permissions: this.resolvePermissions(pending.scope, browserSession.permissions),
       codeChallenge: pending.codeChallenge,
       codeChallengeMethod: pending.codeChallengeMethod,

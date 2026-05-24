@@ -231,6 +231,78 @@ describe('OidcProviderService', () => {
     expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('org_mindrithm123');
   });
 
+  it('loginWithCredentials uses request org_id when Clerk has no org membership', async () => {
+    const { createClerkClient } = await import('@clerk/backend');
+    const mockClerk = {
+      users: {
+        getUserList: jest.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'user_clerk456',
+              primaryEmailAddressId: 'email_2',
+              emailAddresses: [{ id: 'email_2', emailAddress: 'bob@example.com' }],
+              firstName: 'Bob',
+              lastName: 'Jones',
+              imageUrl: null,
+            },
+          ],
+        }),
+        verifyPassword: jest.fn().mockResolvedValue({}),
+        getOrganizationMembershipList: jest.fn().mockResolvedValue({ data: [] }),
+      },
+    };
+    (createClerkClient as jest.Mock).mockReturnValue(mockClerk);
+
+    process.env.AUTH_HANDLER_CONNECTIONS_JSON = JSON.stringify([
+      {
+        id: 'clerk',
+        name: 'Clerk',
+        type: 'oidc',
+        discoveryUrl: 'https://clerk.example.com/.well-known/openid-configuration',
+        clientId: 'clerk-client-id',
+        secretKey: 'sk_test_fake',
+      },
+    ]);
+
+    const service = new OidcProviderService(
+      new AuthHandlerConfigService(),
+      new AuthPersistenceStore(),
+      new UpstreamOidcService(),
+    );
+
+    const loginResult = await service.loginWithCredentials(createRequest(), {
+      client_id: 'agent-forge-web',
+      redirect_uri: 'https://mindrithm.app/callback',
+      email: 'bob@example.com',
+      password: 'correct-password',
+      connection: 'clerk',
+      scope: 'openid profile email agents:read agents:write',
+      code_challenge: 'challenge-clerk-org-param',
+      code_challenge_method: 'plain',
+      org_id: 'org_request123',
+    });
+
+    const code = new URL(loginResult.redirectUrl).searchParams.get('code');
+    expect(code).toBeTruthy();
+
+    const tokenResponse = (await service.exchangeToken(
+      createRequest(),
+      {
+        grant_type: 'authorization_code',
+        client_id: 'agent-forge-web',
+        code: code ?? undefined,
+        redirect_uri: 'https://mindrithm.app/callback',
+        code_verifier: 'challenge-clerk-org-param',
+      },
+      undefined,
+    )) as Record<string, string>;
+
+    const userInfo = service.getUserInfo(
+      `Bearer ${tokenResponse.access_token}`,
+    ) as UserInfoResponse;
+    expect((userInfo as unknown as Record<string, unknown>).org_id).toBe('org_request123');
+  });
+
   it('org_id from authorization request is embedded in the platform token', async () => {
     const service = createService();
 
